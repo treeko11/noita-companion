@@ -1,0 +1,985 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Noita Save Map</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@500;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: full-bleed pannable map; a ledger panel on the left with Wands / Spells / Materials tabs (bottom sheet on phones). Single dark look: it's a cave. */
+:root {
+  --bg: #0f0d14;
+  --panel: #17141f;
+  --panel-2: #201b2b;
+  --line: #2e2739;
+  --fg: #e9e4f2;
+  --muted: #9a90ab;
+  --gold: #e8b64c;      /* wands, rare */
+  --card: #8fa3c8;      /* loose spell cards */
+  --hit: #ff5fd2;       /* tracked */
+  --new: #6fe0a0;       /* never picked up */
+  --display: "Pixelify Sans", "Courier New", monospace;
+  --body: "IBM Plex Sans", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { background: var(--bg); color: var(--fg); font: 14px var(--body); overflow: hidden; }
+[hidden] { display: none !important; }
+.app { display: grid; grid-template-columns: 390px 1fr; height: 100%; }
+aside {
+  background: var(--panel); border-right: 1px solid var(--line);
+  display: flex; flex-direction: column; min-height: 0; min-width: 0;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: 16px; padding-block: 14px 0;
+  gap: 10px;
+}
+.top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+h1 { font-family: var(--display); font-weight: 700; font-size: 24px; letter-spacing: .5px; margin: 0; line-height: 1; }
+.sync { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.sync .btns { display: flex; gap: 4px; }
+.btn { font: 600 12px var(--body); color: var(--fg); background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; padding: 5px 9px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+.btn:hover { border-color: var(--muted); }
+.btn[aria-pressed="true"] { border-color: var(--new); color: var(--new); }
+.btn .led { width: 7px; height: 7px; border-radius: 50%; background: var(--line); }
+.btn[aria-pressed="true"] .led { background: var(--new); box-shadow: 0 0 6px var(--new); }
+.btn.busy { opacity: .6; pointer-events: none; }
+.status { font: 11px var(--mono); color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
+.status.err { color: #ff8a7a; }
+.lbl { font-size: 11px; text-transform: uppercase; letter-spacing: .09em; color: var(--muted); }
+.tracking { display: flex; flex-direction: column; gap: 5px; }
+.tchips { display: flex; flex-wrap: wrap; gap: 5px; min-height: 24px; align-items: center; }
+.tchip { display: inline-flex; align-items: center; gap: 5px; font: 500 12.5px var(--body); color: var(--fg); background: rgba(255,95,210,.12); border: 1px solid rgba(255,95,210,.55); border-radius: 99px; padding: 2px 8px 2px 3px; cursor: pointer; }
+.tchip img { width: 18px; height: 18px; image-rendering: pixelated; }
+.tchip .sw { width: 14px; height: 14px; border-radius: 50%; margin-left: 2px; border: 1px solid rgba(255,255,255,.3); }
+.tchip b { font-weight: 400; color: var(--muted); margin-left: 2px; }
+.tchip:hover { background: rgba(255,95,210,.22); }
+.hint { font-size: 12.5px; color: var(--muted); }
+.tabs { display: flex; border-bottom: 1px solid var(--line); gap: 2px; }
+.tab { font: 600 13.5px var(--body); color: var(--muted); background: none; border: 0; padding: 8px 9px; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.tab[aria-selected="true"] { color: var(--fg); border-color: var(--fg); }
+.tab span { font: 500 11px var(--mono); color: var(--muted); margin-left: 3px; }
+input#q {
+  font: 500 14.5px var(--body); color: var(--fg); background: var(--panel-2);
+  border: 1px solid var(--line); border-radius: 6px; padding: 8px 11px; width: 100%;
+}
+input#q:focus, select:focus { outline: 2px solid var(--hit); outline-offset: 1px; }
+.controls { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
+.chip { font: 500 12px var(--body); color: var(--muted); background: transparent; border: 1px solid var(--line); border-radius: 99px; padding: 4px 9px; cursor: pointer; }
+.chip[aria-pressed="true"] { color: var(--bg); background: var(--fg); border-color: var(--fg); }
+.chip.new[aria-pressed="true"] { background: var(--new); border-color: var(--new); }
+.chip.rare[aria-pressed="true"] { background: var(--gold); border-color: var(--gold); }
+select { font: 500 12px var(--body); color: var(--fg); background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; }
+.chip:focus-visible, .row:focus-visible, button:focus-visible, .sp:focus-visible { outline: 2px solid var(--hit); outline-offset: 2px; }
+.summary { font-size: 12.5px; color: var(--muted); line-height: 1.45; }
+.summary b { color: var(--fg); font-weight: 600; }
+.pane { overflow-y: auto; min-height: 0; flex: 1; padding-bottom: 16px; margin-right: -8px; padding-right: 8px; }
+.list { display: flex; flex-direction: column; gap: 2px; }
+.row { display: grid; grid-template-columns: 12px 1fr; gap: 10px; align-items: start; padding: 9px 8px; border-radius: 6px; cursor: pointer; border: 0; background: none; color: inherit; text-align: left; font: inherit; width: 100%; }
+.row:hover, .row.sel { background: var(--panel-2); }
+.dot { width: 9px; height: 9px; margin-top: 5px; transform: rotate(45deg); background: var(--gold); display: inline-block; }
+.dot.card { background: var(--card); border-radius: 50%; transform: none; }
+.dot.hit { background: var(--hit); box-shadow: 0 0 0 3px rgba(255,95,210,.25); }
+.swatch { width: 12px; height: 12px; border-radius: 50%; margin-top: 3px; border: 1px solid rgba(255,255,255,.25); }
+.rhead { display: flex; gap: 6px; align-items: baseline; flex-wrap: wrap; }
+.rname { font-weight: 600; font-size: 13.5px; }
+.tag { font: 600 10px var(--body); letter-spacing: .06em; text-transform: uppercase; padding: 1px 5px; border-radius: 3px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+.tag.new { color: var(--new); border-color: rgba(111,224,160,.5); }
+.tag.ns, .tag.rare { color: var(--gold); border-color: rgba(232,182,76,.5); }
+.tag.rare { background: rgba(232,182,76,.12); }
+.rmeta { font: 11.5px var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; margin-top: 2px; }
+.stats { display: grid; grid-template-columns: repeat(4, auto); justify-content: start; gap: 2px 12px; margin-top: 4px; font: 11.5px var(--mono); font-variant-numeric: tabular-nums; color: var(--fg); }
+.stats span i { font-style: normal; color: var(--muted); margin-right: 4px; }
+.icons { display: flex; flex-wrap: wrap; gap: 2px; margin-top: 6px; align-items: center; }
+.icons .ac { font: 600 10px var(--body); text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-right: 4px; }
+.ic { position: relative; width: 20px; height: 20px; display: inline-grid; place-items: center; background: #0b0a10; border: 1px solid var(--line); border-radius: 3px; flex: none; }
+.ic img { width: 16px; height: 16px; image-rendering: pixelated; }
+.ic.r { border-color: rgba(232,182,76,.7); }
+.ic.m { border-color: var(--hit); box-shadow: 0 0 0 1px var(--hit); }
+.ic.n::after { content: ""; position: absolute; right: -2px; top: -2px; width: 6px; height: 6px; border-radius: 50%; background: var(--new); box-shadow: 0 0 0 1.5px var(--panel); }
+.noicon { font: 10px var(--mono); color: var(--muted); }
+.empty { color: var(--muted); font-size: 13px; padding: 8px; line-height: 1.5; }
+/* spell library */
+.lib h3 { font: 600 11px var(--body); text-transform: uppercase; letter-spacing: .09em; color: var(--muted); margin: 14px 0 6px; display: flex; justify-content: space-between; }
+.lib h3:first-child { margin-top: 2px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(38px, 1fr)); gap: 4px; }
+.sp { position: relative; aspect-ratio: 1; display: grid; place-items: center; background: #0b0a10; border: 1px solid var(--line); border-radius: 5px; cursor: pointer; padding: 0; }
+.sp img { width: 26px; height: 26px; image-rendering: pixelated; }
+.sp.off img { opacity: .28; filter: grayscale(1); }
+.sp.r { border-color: rgba(232,182,76,.6); }
+.sp.r::before { content: ""; position: absolute; left: 0; top: 0; border-style: solid; border-width: 9px 9px 0 0; border-color: var(--gold) transparent transparent transparent; border-top-left-radius: 4px; }
+.sp:hover { border-color: var(--muted); }
+.sp[aria-pressed="true"] { border-color: var(--hit); box-shadow: 0 0 0 1px var(--hit); background: rgba(255,95,210,.12); }
+.sp .cnt { position: absolute; right: 1px; bottom: 0; font: 600 9.5px var(--mono); color: var(--fg); text-shadow: 0 0 3px #000, 0 0 2px #000; }
+.sp.n::after { content: ""; position: absolute; right: 2px; top: 2px; width: 6px; height: 6px; border-radius: 50%; background: var(--new); }
+.row.irow { grid-template-columns: 20px 1fr; }
+.mrow .right { margin-left: auto; font: 11.5px var(--mono); color: var(--muted); }
+main { position: relative; min-width: 0; min-height: 0; overflow: hidden; background: #0a0910; }
+canvas { display: block; width: 100%; height: 100%; touch-action: none; cursor: grab; }
+canvas.drag { cursor: grabbing; }
+.hud { position: absolute; left: 12px; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); font: 12px var(--mono); color: var(--muted); background: rgba(15,13,20,.82); border: 1px solid var(--line); border-radius: 6px; padding: 6px 9px; font-variant-numeric: tabular-nums; pointer-events: none; }
+.zoom { position: absolute; right: calc(12px + env(safe-area-inset-right, 0px)); top: 12px; display: flex; flex-direction: column; gap: 4px; }
+.zoom button { width: 34px; height: 34px; font: 600 18px var(--body); color: var(--fg); background: rgba(23,20,31,.9); border: 1px solid var(--line); border-radius: 6px; cursor: pointer; }
+.legend { position: absolute; right: calc(12px + env(safe-area-inset-right, 0px)); bottom: calc(12px + env(safe-area-inset-bottom, 0px)); display: flex; gap: 12px; font-size: 12px; color: var(--muted); background: rgba(15,13,20,.82); border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; }
+.legend { align-items: center; flex-wrap: wrap; max-width: calc(100% - 24px); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.layer { display: inline-flex; align-items: center; gap: 6px; font: 500 12px var(--body); color: var(--fg); background: none; border: 1px solid var(--line); border-radius: 99px; padding: 3px 9px; cursor: pointer; }
+.layer .dot { margin-top: 0; }
+.layer[aria-pressed="false"] { color: var(--muted); text-decoration: line-through; opacity: .6; }
+.layer:hover { border-color: var(--muted); }
+.itemdot { width: 9px; height: 9px; border-radius: 2px; background: #c9a7ff; display: inline-block; }
+.flaskdot { width: 9px; height: 9px; border-radius: 50% 50% 45% 45%; background: #6aa9d8; display: inline-block; }
+.legend .ndot { width: 8px; height: 8px; border-radius: 50%; background: var(--new); display: inline-block; }
+.tip { position: absolute; z-index: 5; width: 310px; max-width: calc(100% - 16px); background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; box-shadow: 0 8px 28px rgba(0,0,0,.5); pointer-events: none; }
+.tip.live { pointer-events: auto; }
+.tipnav { display: flex; align-items: center; gap: 6px; margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--line); }
+.tipnav .rmeta { margin: 0 auto 0 0; min-width: 0; }
+.tipnav .btn { white-space: nowrap; flex: none; }
+.tip .rname { font-size: 14px; }
+.tip .sec { font: 600 10px var(--body); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin-top: 9px; }
+.tip ol { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 3px; }
+.tip li { display: grid; grid-template-columns: 20px 1fr auto; gap: 8px; align-items: center; font-size: 12.5px; }
+.tip li.m { color: var(--hit); font-weight: 600; }
+.tip li .tags { display: flex; gap: 3px; justify-self: end; }
+.toast { position: absolute; left: 50%; top: 12px; transform: translateX(-50%); background: var(--panel); border: 1px solid var(--new); color: var(--fg); border-radius: 8px; padding: 7px 12px; font-size: 13px; box-shadow: 0 8px 28px rgba(0,0,0,.5); pointer-events: none; }
+@media (max-width: 760px) {
+  .app { grid-template-columns: 1fr; grid-template-rows: 1fr 52%; }
+  main { grid-row: 1; }
+  aside { grid-row: 2; border-right: 0; border-top: 1px solid var(--line); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-top: 10px; gap: 8px; }
+  h1 { font-size: 19px; }
+  .legend .key { display: none; }
+  .legend { left: 12px; right: auto; bottom: 8px; padding: 4px 6px; gap: 4px; }
+  .hud { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside>
+    <div class="top">
+      <h1>Noita Save Map</h1>
+      <div class="sync">
+        <div class="btns" id="live-btns" hidden>
+          <button class="btn" id="refresh" title="Rescan the save now">⟳ Refresh</button>
+          <button class="btn" id="auto" aria-pressed="false" title="Rescan every 10 seconds while you play"><i class="led"></i>Auto</button>
+        </div>
+        <div class="status" id="status"></div>
+      </div>
+    </div>
+    <div class="tracking">
+      <span class="lbl">Tracking</span>
+      <div class="tchips" id="tchips"></div>
+    </div>
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" id="tab-wands" aria-selected="true">Found <span id="n-wands"></span></button>
+      <button class="tab" role="tab" id="tab-lib" aria-selected="false">Spells <span id="n-lib"></span></button>
+      <button class="tab" role="tab" id="tab-items" aria-selected="false">Items <span id="n-items"></span></button>
+      <button class="tab" role="tab" id="tab-mat" aria-selected="false">Materials <span id="n-mat"></span></button>
+    </div>
+    <input id="q" type="search" placeholder="Filter by spell name" autocomplete="off" spellcheck="false" aria-label="Filter">
+    <div class="controls" id="wand-controls">
+      <select id="show" aria-label="Show">
+        <option value="wand">Wands</option>
+        <option value="card">Loose spells</option>
+        <option value="container">Flasks &amp; pouches</option>
+        <option value="item">Other items</option>
+      </select>
+      <button class="chip" id="f-tracked" aria-pressed="false">Has tracked</button>
+      <button class="chip rare" id="f-rare" aria-pressed="false">Rare</button>
+      <button class="chip new" id="f-new" aria-pressed="false" data-wand>Has new spells</button>
+      <button class="chip" id="f-ns" aria-pressed="false" data-wand>Non-shuffle</button>
+      <button class="chip" id="f-ac" aria-pressed="false" data-wand>Always casts</button>
+      <button class="chip" id="f-unheld" aria-pressed="false" data-wand>Never held</button>
+      <label class="lbl" for="sort" style="margin-left:auto" data-wand>Sort</label>
+      <select id="sort" data-wand>
+        <option value="tracked">Tracked first</option>
+        <option value="rarity">Rarest spell</option>
+        <option value="mana_max">Max mana</option>
+        <option value="mana_charge">Mana charge</option>
+        <option value="capacity">Capacity</option>
+        <option value="per_cast">Spells per cast</option>
+        <option value="cast_delay">Cast delay (low)</option>
+        <option value="recharge">Recharge (low)</option>
+        <option value="spread">Spread (low)</option>
+      </select>
+    </div>
+    <div class="controls" id="lib-controls" hidden>
+      <button class="chip" id="l-map" aria-pressed="false">On the map</button>
+      <button class="chip rare" id="l-rare" aria-pressed="false">Rare</button>
+      <button class="chip new" id="l-new" aria-pressed="false">Never picked up</button>
+      <button class="chip" id="l-sort" aria-pressed="false">Rarest first</button>
+      <button class="chip" id="l-clear">Clear tracking</button>
+    </div>
+    <div class="controls" id="item-controls" hidden>
+      <button class="chip" id="i-map" aria-pressed="false">On the map</button>
+      <button class="chip rare" id="i-rare" aria-pressed="false">Rare</button>
+    </div>
+    <div class="controls" id="mat-controls" hidden>
+      <button class="chip rare" id="m-rare" aria-pressed="true">Rare only</button>
+      <button class="chip" id="m-flask" aria-pressed="false">Flask materials</button>
+    </div>
+    <div class="summary" id="summary"></div>
+    <div class="pane" id="pane"></div>
+  </aside>
+  <main>
+    <canvas id="cv" aria-label="World map"></canvas>
+    <div class="zoom"><button id="zin" aria-label="Zoom in">+</button><button id="zout" aria-label="Zoom out">−</button><button id="zfit" aria-label="Fit main world">⤢</button></div>
+    <div class="hud" id="hud">x —, y —</div>
+    <div class="legend" role="group" aria-label="Map layers">
+      <button class="layer" id="layer-wand" aria-pressed="true" title="Show or hide wands on the map"><i class="dot"></i>Wands</button>
+      <button class="layer" id="layer-card" aria-pressed="true" title="Show or hide loose spells on the map"><i class="dot card"></i>Loose spells</button>
+      <button class="layer" id="layer-container" aria-pressed="true" title="Show or hide flasks and pouches on the map"><i class="flaskdot"></i>Flasks &amp; pouches</button>
+      <button class="layer" id="layer-item" aria-pressed="true" title="Show or hide other items on the map (gold nuggets and Holy Mountain fixtures only show when tracked)"><i class="itemdot"></i>Items</button>
+      <span class="key"><i class="dot hit"></i>Tracked</span><span class="key"><i class="ndot"></i>Never picked up</span>
+    </div>
+    <div class="tip" id="tip" hidden></div>
+    <div class="toast" id="toast" hidden></div>
+  </main>
+</div>
+
+<script>
+let D = /*DATA*/null;
+const LIVE = !D;
+const TYPE_NAMES = { PROJECTILE: 'Projectiles', STATIC_PROJECTILE: 'Static projectiles', MODIFIER: 'Projectile modifiers', DRAW_MANY: 'Multicast', MATERIAL: 'Materials', OTHER: 'Other', UTILITY: 'Utility', PASSIVE: 'Passive' };
+const $ = id => document.getElementById(id);
+const cv = $('cv'), ctx = cv.getContext('2d');
+const store = { get(k, d) { try { const v = localStorage.getItem(k); return v != null ? JSON.parse(v) : d; } catch { return d; } }, set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} } };
+
+let S = {}, items = [], M = {}, onMap = {}, DIV = 4, wandCount = 0;
+let tracked = new Set(store.get('tracked', ['MANA_REDUCE']));
+let trackedMats = new Set(store.get('trackedMats', []));
+let trackedItems = new Set(store.get('trackedItems', ['Kiuaskivi']));
+let C = {};
+let itemf = { map: false, rare: false };
+let tab = 'wands';
+let view = { s: 0.2, x: 0, y: 0 };
+let filters = { tracked: false, rare: false, new: false, ns: false, ac: false, unheld: false };
+let show = 'wand';
+const isBox = it => it.kind === 'flask' || it.kind === 'pouch';
+const kindOf = it => isBox(it) ? 'container' : it.kind;
+const cat = it => C[it.item] || {};
+const quiet = it => it.kind === 'item' && cat(it).quiet;
+let lib = { map: false, rare: false, new: false, sort: false };
+let matf = { rare: true, flask: false };
+let selected = null, hover = null;
+let staticImg = null; const tiles = new Map();
+
+function ingest(data) {
+  D = data; S = D.spells; M = D.materials || {}; C = D.catalog || {}; DIV = D.div;
+  const prevSel = selected && selected.key;
+  spotCache.clear();
+  items = D.items.map((it, i) => ({ ...it, i, ix: it.x / DIV, iy: it.y / DIV, all: [...(it.always || []), ...it.spells],
+    key: `${it.kind}:${it.x}:${it.y}:${it.spells.join(',')}` }));
+  wandCount = items.filter(i => i.kind === 'wand').length;
+  onMap = {}; for (const it of items) for (const s of new Set(it.all)) onMap[s] = (onMap[s] || 0) + 1;
+  selected = prevSel ? items.find(it => it.key === prevSel) || null : null;
+  if (D.live) {
+    const keep = new Set();
+    for (const [cx, cy, v] of D.tiles) {
+      const k = cx + '_' + cy; keep.add(k);
+      const t = tiles.get(k);
+      if (!t || t.v !== v) { const im = new Image(); im.onload = () => { const tt = tiles.get(k); if (tt) tt.ready = true; draw(); }; im.src = `/tile/${k}.png?v=${v}`; tiles.set(k, { cx, cy, v, img: im, ready: false, prev: t && t.ready ? t.img : null }); }
+    }
+    for (const k of [...tiles.keys()]) if (!keep.has(k)) tiles.delete(k);
+  } else if (!staticImg) {
+    staticImg = new Image(); staticImg.onload = draw; staticImg.src = 'map.webp';
+  }
+}
+function bounds() {
+  // main world only, for fitting the view
+  const half = (D.world_w || 35840) / 2;
+  if (D.live) {
+    const ts = D.tiles.filter(t => t[0] >= -half && t[0] < half);
+    const xs = ts.map(t => t[0]), ys = ts.map(t => t[1]);
+    return [Math.min(...xs) / DIV, Math.min(...ys) / DIV, (Math.max(...xs) + 512) / DIV, (Math.max(...ys) + 512) / DIV];
+  }
+  const im = D.image; return [im.x / DIV, im.y / DIV, im.x / DIV + im.w, im.y / DIV + im.h];
+}
+
+const name = id => (S[id] && S[id].name) || id;
+const isNew = id => S[id] && !S[id].known;
+const isRare = id => S[id] && S[id].rare;
+const hasTracked = it => it.kind === 'item' ? trackedItems.has(it.item) : isBox(it) ? (it.contents || []).some(([m]) => trackedMats.has(m)) : it.all.some(s => tracked.has(s));
+const hasNew = it => it.all.some(isNew);
+const hasRare = it => it.kind === 'item' ? !!cat(it).rare : isBox(it) ? !!it.notable : it.all.some(isRare);
+const matName = k => (M[k] && M[k].ui) || k.replace(/_/g, ' ');
+const matColor = k => (M[k] && M[k].color) || '#888';
+const rarest = it => Math.min(...it.all.map(s => (S[s] && S[s].odds) || 1), 1);
+const q = () => $('q').value.trim().toLowerCase();
+const textHit = (it, t) => !t || it.all.some(s => name(s).toLowerCase().includes(t) || s.toLowerCase().includes(t.replace(/ /g, '_'))) || (it.name || '').toLowerCase().includes(t);
+const pct = p => p >= 0.01 ? (p * 100).toFixed(1) + '%' : p >= 0.001 ? (p * 100).toFixed(2) + '%' : (p * 100).toFixed(3) + '%';
+const tierText = t => !t.length ? '' : t.length === 1 ? `tier ${t[0]}` : `tiers ${t[0]}–${t[t.length - 1]}`;
+function oddsText(id) {
+  const sp = S[id]; if (!sp) return '';
+  if (!sp.odds) return 'Not a random spawn';
+  return `${pct(sp.odds)} per spell roll at ${tierText(sp.tiers)}` + (sp.locked ? ' · locked' : '');
+}
+const fmtN = n => n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e3 ? (n / 1e3).toFixed(1) + 'k' : String(n);
+
+function icon(id) {
+  const w = document.createElement('span');
+  w.className = 'ic' + (isNew(id) ? ' n' : '') + (isRare(id) ? ' r' : '') + (tracked.has(id) ? ' m' : '');
+  w.title = name(id) + (isRare(id) ? ' · rare' : '') + (isNew(id) ? ' · never picked up' : '');
+  const sp = S[id];
+  if (sp && sp.icon) { const im = document.createElement('img'); im.src = sp.icon; im.alt = ''; w.append(im); }
+  else { const s = document.createElement('span'); s.className = 'noicon'; s.textContent = '?'; w.append(s); }
+  return w;
+}
+const secs = f => (f / 60).toFixed(2) + 's';
+
+// list: items of the selected kind that match the filters
+const passes = it => kindOf(it) === show && matches(it);
+// map: filters dim non-matching items of the kind being filtered; other kinds are left alone
+const dimmed = it => anyFilter() && kindOf(it) === show && !matches(it);
+function matches(it) {
+  if (filters.tracked && !hasTracked(it)) return false;
+  if (filters.rare && !hasRare(it)) return false;
+  if (show === 'wand') {
+    if (filters.new && !hasNew(it)) return false;
+    if (filters.ns && it.shuffle !== false) return false;
+    if (filters.ac && !(it.always || []).length) return false;
+    if (filters.unheld && it.picked) return false;
+  } else if (show === 'card' && filters.new && !hasNew(it)) return false;
+  const t = tab === 'wands' ? q() : '';
+  if (isBox(it)) return !t || (it.contents || []).some(([m]) => matName(m).toLowerCase().includes(t) || m.includes(t.replace(/ /g, '_')));
+  if (it.kind === 'item') return !t || it.item.toLowerCase().includes(t);
+  return textHit(it, t);
+}
+const anyFilter = () => tab === 'wands' && (Object.values(filters).some(Boolean) || !!q());
+let layers = Object.assign({ wand: true, card: true, container: true, item: true }, store.get('layers', {}));
+const onLayer = it => layers[kindOf(it)];
+
+/* ---------- map ---------- */
+function resize() {
+  const r = cv.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+  cv.width = Math.round(r.width * dpr); cv.height = Math.round(r.height * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0); draw();
+}
+function fit() {
+  const r = cv.getBoundingClientRect(); const [x0, y0, x1, y1] = bounds();
+  const s = Math.min(r.width / (x1 - x0), r.height / (y1 - y0)) * 0.98;
+  view = { s, x: (x0 + x1) / 2 - r.width / 2 / s, y: (y0 + y1) / 2 - r.height / 2 / s }; draw();
+}
+function flyTo(ix, iy, scale) {
+  const r = cv.getBoundingClientRect(); const s = scale || Math.max(view.s, 1.5);
+  view = { s, x: ix - r.width / 2 / s, y: iy - r.height / 2 / s }; draw();
+}
+const itemImgs = new Map();
+function itemImg(it) {
+  const url = cat(it).icon; if (!url) return null;
+  let im = itemImgs.get(url);
+  if (!im) { im = new Image(); im.onload = draw; im.src = url; itemImgs.set(url, im); }
+  return im.complete && im.naturalWidth ? im : null;
+}
+const toScreen = (ix, iy) => [(ix - view.x) * view.s, (iy - view.y) * view.s];
+function draw() {
+  if (!D) return;
+  const r = cv.getBoundingClientRect();
+  ctx.fillStyle = '#0a0910'; ctx.fillRect(0, 0, r.width, r.height);
+  ctx.imageSmoothingEnabled = view.s < 1;
+  if (D.live) {
+    const T = D.tile, sz = T * view.s + 0.5;
+    for (const t of tiles.values()) {
+      const [sx, sy] = toScreen(t.cx / DIV, t.cy / DIV);
+      if (sx > r.width || sy > r.height || sx + sz < 0 || sy + sz < 0) continue;
+      const im = t.ready ? t.img : t.prev; if (im) ctx.drawImage(im, sx, sy, sz, sz);
+    }
+  } else if (staticImg && staticImg.complete && staticImg.naturalWidth) {
+    const [sx, sy] = toScreen(D.image.x / DIV, D.image.y / DIV);
+    ctx.drawImage(staticImg, sx, sy, D.image.w * view.s, D.image.h * view.s);
+  }
+  // tracked material spots
+  for (const m of trackedMats) {
+    const mm = M[m]; if (!mm) continue;
+    for (const sp of spotsOf(m)) {
+      const [sx, sy] = toScreen(sp.ix, sp.iy);
+      if (sx < -20 || sy < -20 || sx > r.width + 20 || sy > r.height + 20) continue;
+      const rad = Math.min(18, 6 + Math.sqrt(sp.n) / 4);
+      ctx.fillStyle = mm.color; ctx.globalAlpha = 0.95; ctx.beginPath(); ctx.arc(sx, sy, rad, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 1; ctx.strokeStyle = '#0a0910'; ctx.lineWidth = 2; ctx.stroke();
+      ctx.strokeStyle = sp === selected || sp === hover ? '#e9e4f2' : '#ff5fd2'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(sx, sy, rad + 4, 0, Math.PI * 2); ctx.stroke();
+    }
+  }
+  const filt = anyFilter();
+  const order = [...items].sort((a, b) => (hasTracked(a) - hasTracked(b)) || ((a === selected) - (b === selected)));
+  for (const it of order) {
+    const [sx, sy] = toScreen(it.ix, it.iy);
+    if (sx < -20 || sy < -20 || sx > r.width + 20 || sy > r.height + 20) continue;
+    if (!onLayer(it) && it !== selected) continue;
+    if (quiet(it) && !hasTracked(it) && it !== selected) continue;
+    const m = hasTracked(it), sel = it === selected || it === hover;
+    if (it.kind === 'item') {
+      ctx.globalAlpha = dimmed(it) && !m ? 0.25 : 1;
+      const im = itemImg(it), z = m ? 18 : 13;
+      if (im) ctx.drawImage(im, sx - z / 2, sy - z / 2, z, z);
+      else { ctx.fillStyle = '#c9a7ff'; ctx.strokeStyle = '#0a0910'; ctx.lineWidth = 1.5; ctx.fillRect(sx - 4, sy - 4, 8, 8); ctx.strokeRect(sx - 4, sy - 4, 8, 8); }
+      if (cat(it).rare) { ctx.strokeStyle = '#e8b64c'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(sx, sy, z / 2 + 4, 0, Math.PI * 2); ctx.stroke(); }
+      if (m || sel) { ctx.strokeStyle = sel ? '#e9e4f2' : 'rgba(255,95,210,.9)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(sx, sy, z / 2 + 7, 0, Math.PI * 2); ctx.stroke(); }
+      ctx.globalAlpha = 1;
+      continue;
+    }
+    const shown = !dimmed(it);
+    if (!shown && !m) { if (it.kind === 'card') continue; ctx.globalAlpha = 0.22; } else ctx.globalAlpha = 1;
+    const box = isBox(it);
+    const sz = it.kind === 'wand' ? (m ? 7 : 4.5) : box ? (m || it.notable ? 6 : 4) : (m ? 6 : 3);
+    ctx.fillStyle = box ? (it.main ? matColor(it.main) : '#555') : m ? '#ff5fd2' : it.kind === 'wand' ? '#e8b64c' : '#8fa3c8';
+    ctx.strokeStyle = '#0a0910'; ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    if (it.kind === 'wand') { ctx.moveTo(sx, sy - sz); ctx.lineTo(sx + sz, sy); ctx.lineTo(sx, sy + sz); ctx.lineTo(sx - sz, sy); ctx.closePath(); }
+    else if (box) { // flask: round body with a neck; pouch: rounded square
+      if (it.kind === 'flask') { ctx.arc(sx, sy + sz * 0.25, sz, 0, Math.PI * 2); ctx.rect(sx - sz * 0.35, sy - sz * 1.3, sz * 0.7, sz * 0.9); }
+      else { ctx.roundRect ? ctx.roundRect(sx - sz, sy - sz, sz * 2, sz * 2, 2) : ctx.rect(sx - sz, sy - sz, sz * 2, sz * 2); }
+    }
+    else ctx.arc(sx, sy, sz, 0, Math.PI * 2);
+    ctx.fill(); ctx.stroke();
+    if (box && it.notable && shown) { ctx.strokeStyle = '#e8b64c'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(sx, sy, sz + 5, 0, Math.PI * 2); ctx.stroke(); }
+    if (!box && shown && hasNew(it)) { ctx.fillStyle = '#6fe0a0'; ctx.beginPath(); ctx.arc(sx + sz * 0.9, sy - sz * 0.9, 2.6, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
+    if (m || sel) {
+      ctx.strokeStyle = sel ? '#e9e4f2' : 'rgba(255,95,210,.8)'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(sx, sy, sz + 7, 0, Math.PI * 2); ctx.stroke();
+    }
+  }
+  ctx.globalAlpha = 1;
+}
+
+/* ---------- wands tab ---------- */
+function title(it) { return it.kind === 'wand' ? (it.name || 'Wand') : isBox(it) || it.kind === 'item' ? it.name : name(it.spells[0]); }
+const SRC = { pedestal: 'item pedestals', lab_pedestal: 'lab pedestals', chest: 'chests', great_chest: 'great chests' };
+function itemOdds(c) {
+  const o = Object.entries(c.odds || {});
+  if (!o.length) return '';
+  return o.map(([k, v]) => `${pct(v)} from ${SRC[k] || k}`).join(' · ');
+}
+function itemIcon(c, size = 20) {
+  const w = document.createElement('span'); w.className = 'ic'; w.style.width = w.style.height = size + 'px';
+  if (c.icon) { const im = document.createElement('img'); im.src = c.icon; im.alt = ''; im.style.width = im.style.height = (size - 4) + 'px'; im.style.objectFit = 'contain'; w.append(im); }
+  else { const t = document.createElement('span'); t.className = 'noicon'; t.textContent = (c.name || '?')[0]; w.append(t); }
+  return w;
+}
+function itemTags(it) {
+  const f = document.createDocumentFragment();
+  if (cat(it).rare) { const s = document.createElement('span'); s.className = 'tag rare'; s.textContent = 'Rare'; f.append(s); }
+  if (hasTracked(it)) { const s = document.createElement('span'); s.className = 'tag'; s.style.color = 'var(--hit)'; s.textContent = 'Tracked'; f.append(s); }
+  return f;
+}
+function boxOdds(it) {
+  if (!it.main) return 'Empty';
+  if (it.odds != null) return `${pct(it.odds)} of ${it.kind === 'pouch' ? 'pouches' : 'regular flasks'}`;
+  return it.why || '';
+}
+function boxTags(it) {
+  const f = document.createDocumentFragment();
+  const add = (t, c, title) => { const s = document.createElement('span'); s.className = 'tag ' + c; s.textContent = t; if (title) s.title = title; f.append(s); };
+  if (it.notable) add(it.odds != null ? 'Rare' : 'Unusual', 'rare');
+  if (it.unverified) add('Unverified', '', 'This contents number could not be checked against the spawn tables');
+  if (it.fill && it.fill !== 1000) add(Math.round(it.fill / 10) + '% full', '');
+  return f;
+}
+function contentsEl(it) {
+  const box = document.createElement('div'); box.className = 'rmeta';
+  box.textContent = (it.contents || []).slice(0, 4).map(([m, n]) => `${matName(m)} ${Math.round(n / 10)}%`).join(' · ');
+  return box;
+}
+function statsEl(it) {
+  const g = document.createElement('div'); g.className = 'stats';
+  const cells = [['Cast', it.per_cast], ['Delay', secs(it.cast_delay)], ['Rech', secs(it.recharge)], ['Cap', it.capacity],
+                 ['Mana', it.mana_max], ['Chg', it.mana_charge], ['Sprd', it.spread + '°']];
+  for (const [k, v] of cells) { const s = document.createElement('span'); s.innerHTML = `<i>${k}</i>`; s.append(String(v)); g.append(s); }
+  return g;
+}
+function tagsEl(it) {
+  const f = document.createDocumentFragment();
+  const add = (t, c) => { const s = document.createElement('span'); s.className = 'tag ' + c; s.textContent = t; f.append(s); };
+  const nr = new Set(it.all.filter(isRare)).size; if (nr) add(it.kind === 'card' ? 'Rare' : nr === 1 ? 'Rare spell' : `${nr} rare`, 'rare');
+  if (it.kind === 'wand' && it.shuffle === false) add('Non-shuffle', 'ns');
+  const n = new Set(it.all.filter(isNew)).size; if (n) add(it.kind === 'card' ? 'New' : n === 1 ? '1 new' : `${n} new`, 'new');
+  if (it.picked) add('Held before', '');
+  return f;
+}
+function renderWands() {
+  const pane = $('pane'); pane.textContent = '';
+  const list = document.createElement('div'); list.className = 'list'; pane.append(list);
+  let rows = items.filter(passes);
+  const k = $('sort').value, low = ['cast_delay', 'recharge', 'spread'].includes(k);
+  const val = it => k === 'spread' ? Math.abs(it.spread ?? 99) : (it[k] ?? (low ? 1e9 : -1e9));
+  if (k === 'tracked') rows.sort((a, b) => hasTracked(b) - hasTracked(a) || hasRare(b) - hasRare(a) || hasNew(b) - hasNew(a));
+  else if (k === 'rarity') rows.sort((a, b) => rarest(a) - rarest(b));
+  else rows.sort((a, b) => low ? val(a) - val(b) : val(b) - val(a));
+  if (show === 'container') rows.sort((a, b) => hasTracked(b) - hasTracked(a) || b.notable - a.notable || (a.odds ?? -1) - (b.odds ?? -1));
+  const nt = rows.filter(hasTracked).length, nr = rows.filter(hasRare).length;
+  if (show === 'item') rows.sort((a, b) => hasTracked(b) - hasTracked(a) || hasRare(b) - hasRare(a) || a.item.localeCompare(b.item));
+  const label = { wand: 'wands', card: 'loose spells', container: 'flasks and pouches', item: 'items' }[show];
+  $('summary').innerHTML = `Showing <b>${rows.length}</b> ${label} · <b>${nr}</b> ${show === 'container' ? 'rare or unusual' : 'with rare spells'}` + ((show === 'container' ? trackedMats.size : tracked.size) ? ` · <b>${nt}</b> tracked` : '');
+  if (!rows.length) { const e = document.createElement('div'); e.className = 'empty'; e.textContent = 'Nothing loaded matches these filters. Only areas the game has written to disk are in the save, so it may still be out there.'; list.append(e); }
+  for (const it of rows.slice(0, 300)) {
+    const b = document.createElement('button'); b.className = 'row' + (it === selected ? ' sel' : '') + (it.kind === 'item' ? ' irow' : '');
+    const d = document.createElement('i');
+    if (it.kind === 'item') { d.className = ''; d.append(itemIcon(cat(it), 18)); }
+    else if (isBox(it)) { d.className = 'swatch'; d.style.background = it.main ? matColor(it.main) : '#555'; if (hasTracked(it)) d.style.boxShadow = '0 0 0 2px #ff5fd2'; }
+    else d.className = 'dot' + (it.kind === 'card' ? ' card' : '') + (hasTracked(it) ? ' hit' : '');
+    const body = document.createElement('div');
+    const h = document.createElement('div'); h.className = 'rhead';
+    const nm = document.createElement('span'); nm.className = 'rname'; nm.textContent = title(it); h.append(nm, isBox(it) ? boxTags(it) : it.kind === 'item' ? itemTags(it) : tagsEl(it));
+    body.append(h);
+    if (it.kind === 'item') { const o = document.createElement('div'); o.className = 'rmeta'; o.textContent = itemOdds(cat(it)); if (o.textContent) body.append(o); }
+    if (isBox(it)) {
+      const o = document.createElement('div'); o.className = 'rmeta'; o.textContent = boxOdds(it); body.append(o);
+      if ((it.contents || []).length > 1) body.append(contentsEl(it));
+    }
+    if (it.kind === 'wand') {
+      body.append(statsEl(it));
+      if ((it.always || []).length) { const ac = document.createElement('div'); ac.className = 'icons'; ac.innerHTML = '<span class="ac">Always</span>'; it.always.forEach(s => ac.append(icon(s))); body.append(ac); }
+      if (it.spells.length) { const ic = document.createElement('div'); ic.className = 'icons'; it.spells.forEach(s => ic.append(icon(s))); body.append(ic); }
+    }
+    const meta = document.createElement('div'); meta.className = 'rmeta';
+    meta.textContent = (it.kind === 'card' ? oddsText(it.spells[0]) + ' · ' : '') + `x ${it.x}, y ${it.y}`;
+    body.append(meta);
+    b.append(d, body);
+    b.onclick = () => { selected = it; flyTo(it.ix, it.iy, 2); showTip(it); render(); };
+    list.append(b);
+  }
+}
+
+/* ---------- spells tab ---------- */
+function renderLib() {
+  const pane = $('pane'); pane.textContent = '';
+  const wrap = document.createElement('div'); wrap.className = 'lib'; pane.append(wrap);
+  const t = q();
+  const ids = Object.keys(S).filter(id => (!t || name(id).toLowerCase().includes(t) || id.toLowerCase().includes(t.replace(/ /g, '_')))
+    && (!lib.map || onMap[id]) && (!lib.new || isNew(id)) && (!lib.rare || isRare(id)));
+  const total = Object.keys(S).length, known = Object.values(S).filter(s => s.known).length, rare = Object.values(S).filter(s => s.rare).length;
+  $('summary').innerHTML = `<b>${known}</b> of ${total} picked up in past runs · <b>${Object.keys(onMap).length}</b> kinds on the map · <b>${rare}</b> rare (under ${pct(D.rare_threshold || 0.003)} per roll). Click to track.`;
+  if (!ids.length) { const e = document.createElement('div'); e.className = 'empty'; e.textContent = 'No spells match.'; wrap.append(e); return; }
+  const tile = id => {
+    const b = document.createElement('button');
+    b.className = 'sp' + (onMap[id] ? '' : ' off') + (isNew(id) ? ' n' : '') + (isRare(id) ? ' r' : '');
+    b.setAttribute('aria-pressed', tracked.has(id));
+    b.title = `${name(id)}\n${oddsText(id)}\n${onMap[id] ? `On ${onMap[id]} item${onMap[id] > 1 ? 's' : ''} in the world` : 'Not on the map'}${isNew(id) ? '\nNever picked up' : ''}`;
+    b.setAttribute('aria-label', b.title.replace(/\n/g, ' · '));
+    const sp = S[id];
+    if (sp.icon) { const im = document.createElement('img'); im.src = sp.icon; im.alt = ''; b.append(im); } else { const s = document.createElement('span'); s.className = 'noicon'; s.textContent = '?'; b.append(s); }
+    if (onMap[id]) { const c = document.createElement('span'); c.className = 'cnt'; c.textContent = onMap[id]; b.append(c); }
+    b.onclick = () => toggleTrack(id);
+    return b;
+  };
+  if (lib.sort) {
+    const h = document.createElement('h3'); h.innerHTML = '<span>Rarest random spawns first</span><span></span>'; h.children[1].textContent = ids.length;
+    const g = document.createElement('div'); g.className = 'grid';
+    ids.sort((a, b) => ((S[a].odds || 9) - (S[b].odds || 9))).forEach(id => g.append(tile(id)));
+    wrap.append(h, g); return;
+  }
+  const groups = {};
+  for (const id of ids) (groups[S[id].type] ||= []).push(id);
+  const order = [...(D.types || []), ...Object.keys(groups)].filter((v, i, a) => a.indexOf(v) === i && groups[v]);
+  for (const ty of order) {
+    const h = document.createElement('h3'); h.innerHTML = `<span></span><span></span>`; h.children[0].textContent = TYPE_NAMES[ty] || ty; h.children[1].textContent = groups[ty].length;
+    const g = document.createElement('div'); g.className = 'grid';
+    groups[ty].sort((a, b) => S[a].order - S[b].order).forEach(id => g.append(tile(id)));
+    wrap.append(h, g);
+  }
+}
+
+/* ---------- items tab ---------- */
+function renderItems() {
+  const pane = $('pane'); pane.textContent = '';
+  const wrap = document.createElement('div'); wrap.className = 'lib'; pane.append(wrap);
+  const t = q();
+  const keys = Object.keys(C).filter(k => (!t || k.toLowerCase().includes(t)) && (!itemf.map || C[k].n) && (!itemf.rare || C[k].rare));
+  const onMapN = Object.values(C).filter(c => c.n).length;
+  $('summary').innerHTML = `<b>${onMapN}</b> kinds of item in the loaded world. Click one to track it on the map. Names and odds from the Noita wiki.`;
+  if (!keys.length) { const e = document.createElement('div'); e.className = 'empty'; e.textContent = 'No items match.'; wrap.append(e); return; }
+  const hasOdds = k => Object.keys(C[k].odds || {}).length > 0;
+  const groups = [['Treasure and artefacts', keys.filter(hasOdds)], ['Other items', keys.filter(k => !hasOdds(k))]];
+  for (const [label, ks] of groups) {
+    if (!ks.length) continue;
+    const h = document.createElement('h3'); h.innerHTML = '<span></span><span></span>'; h.children[0].textContent = label; h.children[1].textContent = ks.length;
+    const g = document.createElement('div'); g.className = 'grid';
+    ks.sort((a, b) => (C[b].n > 0) - (C[a].n > 0) || a.localeCompare(b)).forEach(k => {
+      const c = C[k];
+      const b = document.createElement('button');
+      b.className = 'sp' + (c.n ? '' : ' off') + (c.rare ? ' r' : '');
+      b.setAttribute('aria-pressed', trackedItems.has(k));
+      b.title = [c.name, itemOdds(c) || 'No spawn odds on the wiki', c.n ? `${c.n} in the world` : 'Not on the map'].join('\n');
+      b.setAttribute('aria-label', b.title.replace(/\n/g, ' · '));
+      if (c.icon) { const im = document.createElement('img'); im.src = c.icon; im.alt = ''; im.style.objectFit = 'contain'; b.append(im); }
+      else { const s2 = document.createElement('span'); s2.className = 'noicon'; s2.style.fontSize = '9px'; s2.style.textAlign = 'center'; s2.textContent = c.name.slice(0, 10); b.append(s2); }
+      if (c.n) { const n = document.createElement('span'); n.className = 'cnt'; n.textContent = c.n; b.append(n); }
+      b.onclick = () => toggleItem(k);
+      g.append(b);
+    });
+    wrap.append(h, g);
+  }
+}
+function toggleItem(k) {
+  trackedItems.has(k) ? trackedItems.delete(k) : trackedItems.add(k);
+  store.set('trackedItems', [...trackedItems]);
+  const scroll = $('pane').scrollTop; render(); $('pane').scrollTop = scroll;
+  if (trackedItems.has(k)) {
+    const hits = items.filter(it => it.kind === 'item' && it.item === k);
+    if (hits.length) { selected = hits[0]; flyTo(hits[0].ix, hits[0].iy, Math.max(view.s, 1)); showTip(hits[0]); }
+    toast(hits.length ? `${hits.length} × ${k} in the loaded world` : `No ${k} in the loaded world yet`);
+  }
+}
+
+/* ---------- materials tab ---------- */
+function renderMats() {
+  const pane = $('pane'); pane.textContent = '';
+  const list = document.createElement('div'); list.className = 'list'; pane.append(list);
+  const t = q();
+  const inNotable = new Set(items.filter(it => isBox(it) && it.notable && it.main).map(it => it.main));
+  let rows = Object.entries(M).filter(([k, m]) => (!matf.rare || m.rare || inNotable.has(k) || trackedMats.has(k)) && (!matf.flask || m.flask || m.containers)
+    && (!t || m.ui.toLowerCase().includes(t) || k.includes(t.replace(/ /g, '_'))));
+  rows.sort((a, b) => (trackedMats.has(b[0]) - trackedMats.has(a[0])) || a[1].n - b[1].n);
+  $('summary').innerHTML = `<b>${Object.keys(M).length}</b> materials in the loaded world and its flasks. Rarest first. Click one to mark every spot and flask on the map. Names and odds from the Noita wiki.`;
+  if (!rows.length) { const e = document.createElement('div'); e.className = 'empty'; e.textContent = 'No materials match.'; list.append(e); }
+  for (const [k, m] of rows.slice(0, 300)) {
+    const b = document.createElement('button'); b.className = 'row mrow' + (trackedMats.has(k) ? ' sel' : '');
+    const sw = document.createElement('i'); sw.className = 'swatch'; sw.style.background = m.color;
+    const body = document.createElement('div');
+    const h = document.createElement('div'); h.className = 'rhead';
+    const nm = document.createElement('span'); nm.className = 'rname'; nm.textContent = m.ui; h.append(nm);
+    if (m.rare) { const s = document.createElement('span'); s.className = 'tag rare'; s.textContent = 'Rare'; h.append(s); }
+    else if (inNotable.has(k)) { const s = document.createElement('span'); s.className = 'tag rare'; s.textContent = 'In unusual flask'; h.append(s); }
+    if (trackedMats.has(k)) { const s = document.createElement('span'); s.className = 'tag'; s.style.color = 'var(--hit)'; s.textContent = 'Tracked'; h.append(s); }
+    const meta = document.createElement('div'); meta.className = 'rmeta';
+    meta.textContent = [m.n ? `${fmtN(m.n)} px in ${m.spots.length} area${m.spots.length === 1 ? '' : 's'}` : null,
+      m.containers ? `in ${m.containers} flask${m.containers === 1 ? '' : 's'}/pouch${m.containers === 1 ? '' : 'es'}` : null,
+      m.flask ? `${pct(m.flask)} of flasks` : null, m.pouch ? `${pct(m.pouch)} of pouches` : null].filter(Boolean).join(' · ');
+    body.append(h, meta);
+    b.append(sw, body);
+    b.onclick = () => toggleMat(k);
+    list.append(b);
+  }
+}
+
+function toggleTrack(id) {
+  tracked.has(id) ? tracked.delete(id) : tracked.add(id);
+  store.set('tracked', [...tracked]);
+  const scroll = $('pane').scrollTop; render(); $('pane').scrollTop = scroll;
+  if (tracked.has(id)) {
+    const hits = items.filter(it => it.all.includes(id));
+    if (hits.length === 1) { selected = hits[0]; flyTo(hits[0].ix, hits[0].iy, Math.max(view.s, 1)); showTip(hits[0]); }
+  }
+}
+function toggleMat(k) {
+  trackedMats.has(k) ? trackedMats.delete(k) : trackedMats.add(k);
+  store.set('trackedMats', [...trackedMats]);
+  const scroll = $('pane').scrollTop; render(); $('pane').scrollTop = scroll;
+  const m = M[k];
+  if (!trackedMats.has(k) || !m) return;
+  const box = items.find(it => isBox(it) && it.main === k);
+  if (box) { selected = box; flyTo(box.ix, box.iy, Math.max(view.s, 1)); showTip(box); }
+  else if (m.spots.length) { const [x, y] = m.spots[0]; flyTo(x / DIV, y / DIV, Math.max(view.s, 0.8)); }
+}
+
+function renderTracking() {
+  const box = $('tchips'); box.textContent = '';
+  if (!tracked.size && !trackedMats.size && !trackedItems.size) { const s = document.createElement('span'); s.className = 'hint'; s.textContent = 'Nothing yet. Pick spells or materials from the tabs below.'; box.append(s); return; }
+  for (const id of tracked) {
+    const c = document.createElement('button'); c.className = 'tchip'; c.title = `Stop tracking ${name(id)}`;
+    const im = S[id] && S[id].icon; if (im) { const i = document.createElement('img'); i.src = im; i.alt = ''; c.append(i); }
+    const t = document.createElement('span'); t.textContent = name(id); c.append(t);
+    const n = document.createElement('b'); n.textContent = onMap[id] || 0; c.append(n);
+    c.onclick = () => toggleTrack(id); box.append(c);
+  }
+  for (const k of trackedItems) {
+    const c = C[k] || { name: k, n: 0 };
+    const b = document.createElement('button'); b.className = 'tchip'; b.title = `Stop tracking ${c.name}`;
+    if (c.icon) { const i = document.createElement('img'); i.src = c.icon; i.alt = ''; i.style.objectFit = 'contain'; b.append(i); }
+    const t = document.createElement('span'); t.textContent = c.name; b.append(t);
+    const n = document.createElement('b'); n.textContent = c.n || 0; b.append(n);
+    b.onclick = () => toggleItem(k); box.append(b);
+  }
+  for (const k of trackedMats) {
+    const m = M[k];
+    const c = document.createElement('button'); c.className = 'tchip'; c.title = `Stop tracking ${m ? m.ui : k}`;
+    const sw = document.createElement('i'); sw.className = 'sw'; sw.style.background = m ? m.color : '#888'; c.append(sw);
+    const t = document.createElement('span'); t.textContent = m ? m.ui : k; c.append(t);
+    const n = document.createElement('b'); n.textContent = m ? m.spots.length : 0; c.append(n);
+    c.onclick = () => toggleMat(k); box.append(c);
+  }
+}
+
+function render() {
+  if (!D) return;
+  renderTracking();
+  $('n-wands').textContent = items.length;
+  document.querySelectorAll('[data-wand]').forEach(el => el.hidden = show !== 'wand'); $('n-lib').textContent = Object.keys(S).length; $('n-mat').textContent = Object.keys(M).length;
+  $('wand-controls').hidden = tab !== 'wands'; $('lib-controls').hidden = tab !== 'lib'; $('mat-controls').hidden = tab !== 'mat'; $('item-controls').hidden = tab !== 'items';
+  $('n-items').textContent = Object.values(C).filter(c => c.n).length;
+  $('q').placeholder = { wands: { wand: 'Filter wands by spell or name', card: 'Filter by spell', container: 'Filter by material', item: 'Filter items by name' }[show], lib: 'Find a spell', items: 'Find an item', mat: 'Find a material' }[tab];
+  ({ wands: renderWands, lib: renderLib, items: renderItems, mat: renderMats })[tab]();
+  draw();
+  if (selected) showTip(selected);
+}
+
+/* ---------- tooltip ---------- */
+// The group "Show next" steps through, main world first, then west to east, top to bottom:
+//  items: every copy of the same item
+//  wands / loose spells: everything holding one of the tracked spells this one holds
+//  flasks / pouches: everything holding one of the tracked materials this one holds,
+//                    or failing that, every container with the same main material
+// one stable object per tracked-material spot, so a spot can stay selected
+const spotCache = new Map();
+function spotsOf(k) {
+  if (!spotCache.has(k)) {
+    const m = M[k];
+    spotCache.set(k, m ? m.spots.map(([x, y, n]) => ({ spot: true, k, m, x, y, n, ix: x / DIV, iy: y / DIV })) : []);
+  }
+  return spotCache.get(k);
+}
+function siblings(it) {
+  let match, what;
+  if (it.spot) {
+    // every area with this material, plus every flask or pouch holding it
+    const list = [...spotsOf(it.k), ...items.filter(o => isBox(o) && (o.contents || []).some(([m]) => m === it.k))];
+    const w = D.world_w || 35840, world = x => Math.abs(Math.round(x / w));
+    return { list: list.sort((a, b) => world(a.x) - world(b.x) || a.x - b.x || a.y - b.y), what: it.m.ui };
+  }
+  if (it.kind === 'item') { match = o => o.kind === 'item' && o.item === it.item; what = it.item; }
+  else if (isBox(it)) {
+    const mine = (it.contents || []).map(([m]) => m).filter(m => trackedMats.has(m));
+    if (mine.length) { match = o => isBox(o) && (o.contents || []).some(([m]) => mine.includes(m)); what = mine.map(matName).join(', '); }
+    else if (it.main) { match = o => isBox(o) && o.main === it.main; what = matName(it.main); }
+  } else {
+    const mine = [...new Set(it.all.filter(s => tracked.has(s)))];
+    if (mine.length) { match = o => (o.kind === 'wand' || o.kind === 'card') && o.all.some(s => mine.includes(s)); what = mine.map(name).join(', '); }
+  }
+  if (!match) return { list: [], what: '' };
+  const w = D.world_w || 35840, world = x => Math.abs(Math.round(x / w));
+  const list = items.filter(match);
+  if (isBox(it)) {  // a flask holding tracked materials also steps through those materials' spots in the world
+    const mine = (it.contents || []).map(([m]) => m).filter(m => trackedMats.has(m));
+    for (const m of mine) list.push(...spotsOf(m));
+  }
+  list.sort((a, b) => world(a.x) - world(b.x) || a.x - b.x || a.y - b.y);
+  return { list, what };
+}
+function goTo(it) {
+  selected = it; flyTo(it.ix, it.iy, Math.max(view.s, 1)); showTip(it);
+  if (tab === 'wands') renderWands();
+}
+function showTip(it) {
+  const tip = $('tip');
+  if (!it) { tip.hidden = true; return; }
+  tip.textContent = '';
+  if (it.spot) {
+    const h = document.createElement('div'); h.className = 'rhead';
+    const nm = document.createElement('span'); nm.className = 'rname'; nm.textContent = it.m.ui; h.append(nm); tip.append(h);
+    const meta = document.createElement('div'); meta.className = 'rmeta'; meta.textContent = `${fmtN(it.n)} px in this area · x ${it.x}, y ${it.y}`; tip.append(meta);
+  } else {
+    const h = document.createElement('div'); h.className = 'rhead';
+    const nm = document.createElement('span'); nm.className = 'rname'; nm.textContent = title(it); h.append(nm, isBox(it) ? boxTags(it) : it.kind === 'item' ? itemTags(it) : tagsEl(it)); tip.append(h);
+    if (it.kind === 'item') {
+      const c = cat(it);
+      const o = document.createElement('div'); o.className = 'rmeta'; o.textContent = itemOdds(c); if (o.textContent) tip.append(o);
+      for (const [label, text] of [['Description', c.description], ['Effect', c.effect]]) {
+        if (!text) continue;
+        const s2 = document.createElement('div'); s2.className = 'sec'; s2.textContent = label;
+        const t = document.createElement('div'); t.style.fontSize = '12.5px'; t.textContent = text; tip.append(s2, t);
+      }
+    }
+    const meta = document.createElement('div'); meta.className = 'rmeta'; meta.textContent = `x ${it.x}, y ${it.y}${it.kind === 'card' ? ' · loose spell' : ''}`; tip.append(meta);
+    if (isBox(it)) {
+      const o = document.createElement('div'); o.className = 'rmeta'; o.textContent = boxOdds(it); tip.append(o);
+      const s = document.createElement('div'); s.className = 'sec'; s.textContent = 'Contents'; tip.append(s);
+      const ol = document.createElement('ol');
+      (it.contents || []).slice(0, 8).forEach(([m, n]) => {
+        const li = document.createElement('li'); if (trackedMats.has(m)) li.className = 'm';
+        const sw = document.createElement('span'); sw.className = 'swatch'; sw.style.background = matColor(m); sw.style.margin = '0 auto';
+        const t = document.createElement('span'); t.textContent = matName(m);
+        const a = document.createElement('span'); a.className = 'rmeta'; a.textContent = `${Math.round(n / 10)}%`;
+        li.append(sw, t, a); ol.append(li);
+      });
+      tip.append(ol);
+    }
+    const sec = (label, list) => {
+      if (!list.length) return;
+      const s = document.createElement('div'); s.className = 'sec'; s.textContent = label; tip.append(s);
+      const ol = document.createElement('ol');
+      list.forEach(id => {
+        const li = document.createElement('li'); if (tracked.has(id)) li.className = 'm';
+        const n = document.createElement('span'); n.textContent = name(id); n.title = oddsText(id);
+        const tg = document.createElement('span'); tg.className = 'tags';
+        if (isRare(id)) { const t = document.createElement('span'); t.className = 'tag rare'; t.textContent = pct(S[id].odds); tg.append(t); }
+        if (isNew(id)) { const t = document.createElement('span'); t.className = 'tag new'; t.textContent = 'New'; tg.append(t); }
+        li.append(icon(id), n, tg); ol.append(li);
+      });
+      tip.append(ol);
+    };
+    if (it.kind === 'wand') {
+      tip.append(statsEl(it));
+      sec('Always casts', it.always || []);
+      sec('Spells', it.spells);
+      if (!it.all.length) { const s = document.createElement('div'); s.className = 'sec'; s.textContent = 'No spells'; tip.append(s); }
+    } else if (it.kind === 'card') {
+      sec('Spell', it.spells);
+      const o = document.createElement('div'); o.className = 'rmeta'; o.textContent = oddsText(it.spells[0]); tip.append(o);
+    }
+  }
+  // "Show next" through the group (only on the selected marker, so the buttons can be clicked)
+  const grp = siblings(it), same = grp.list;
+  tip.classList.toggle('live', it === selected && same.length > 1);
+  if (it === selected && same.length > 1) {
+    const i = same.indexOf(it);
+    const bar = document.createElement('div'); bar.className = 'tipnav';
+    const pos = document.createElement('span'); pos.className = 'rmeta'; pos.textContent = `${i + 1} of ${same.length}`;
+    if (it.kind !== 'item') pos.title = 'Stepping through everything with ' + grp.what;
+    if (it.kind !== 'item') pos.textContent += ' · ' + (grp.what.length > 22 ? grp.what.slice(0, 21) + '…' : grp.what);
+    const prev = document.createElement('button'); prev.className = 'btn'; prev.textContent = '‹ Previous'; prev.onclick = () => goTo(same[(i - 1 + same.length) % same.length]);
+    const next = document.createElement('button'); next.className = 'btn'; next.textContent = 'Show next ›'; next.onclick = () => goTo(same[(i + 1) % same.length]);
+    bar.append(pos, prev, next); tip.append(bar);
+  }
+  tip.hidden = false;
+  const r = cv.getBoundingClientRect();
+  let [sx, sy] = toScreen(it.ix, it.iy); sx += 16; sy += 16;
+  const tw = tip.offsetWidth, th = tip.offsetHeight;
+  if (sx + tw > r.width - 8) sx = sx - tw - 32; if (sy + th > r.height - 8) sy = Math.max(8, r.height - th - 8);
+  tip.style.left = Math.max(8, sx) + 'px'; tip.style.top = Math.max(8, sy) + 'px';
+}
+
+function pick(px, py) {
+  let best = null, bd = 14 * 14;
+  for (const it of items) {
+    if (!onLayer(it)) continue;
+    if (quiet(it) && !hasTracked(it)) continue;
+    if (dimmed(it) && !hasTracked(it) && it.kind === 'card') continue;
+    const [sx, sy] = toScreen(it.ix, it.iy), dx = sx - px, dy = sy - py, d = dx * dx + dy * dy;
+    if (d < bd || (best && d <= bd + 40 && hasTracked(it) && !hasTracked(best))) { bd = d; best = it; }
+  }
+  for (const k of trackedMats) {   // a tracked-material spot wins when it is closer than any marker
+    const m = M[k]; if (!m) continue;
+    for (const sp of spotsOf(k)) {
+      const [sx, sy] = toScreen(sp.ix, sp.iy), d = (sx - px) ** 2 + (sy - py) ** 2;
+      if (d < bd) { bd = d; best = sp; }
+    }
+  }
+  return best;
+}
+
+/* ---------- pan / zoom ---------- */
+const ptrs = new Map(); let pinch = null, moved = false;
+function zoomAt(px, py, f) {
+  const ns = Math.min(16, Math.max(0.02, view.s * f));
+  const ix = view.x + px / view.s, iy = view.y + py / view.s;
+  view = { s: ns, x: ix - px / ns, y: iy - py / ns }; draw();
+  if (selected) showTip(selected);
+}
+cv.addEventListener('wheel', e => { e.preventDefault(); const r = cv.getBoundingClientRect(); zoomAt(e.clientX - r.left, e.clientY - r.top, Math.exp(-e.deltaY * 0.0015)); }, { passive: false });
+cv.addEventListener('pointerdown', e => { cv.setPointerCapture(e.pointerId); ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY }); moved = false; cv.classList.add('drag');
+  if (ptrs.size === 2) { const [a, b] = [...ptrs.values()]; pinch = { d: Math.hypot(a.x - b.x, a.y - b.y) }; } });
+cv.addEventListener('pointermove', e => {
+  if (!D) return;
+  const r = cv.getBoundingClientRect(), px = e.clientX - r.left, py = e.clientY - r.top;
+  const p = ptrs.get(e.pointerId);
+  if (p) {
+    const dx = e.clientX - p.x, dy = e.clientY - p.y;
+    if (Math.abs(dx) + Math.abs(dy) > 2) moved = true;
+    p.x = e.clientX; p.y = e.clientY;
+    if (ptrs.size === 2 && pinch) {
+      const [a, b] = [...ptrs.values()]; const d = Math.hypot(a.x - b.x, a.y - b.y);
+      zoomAt((a.x + b.x) / 2 - r.left, (a.y + b.y) / 2 - r.top, d / pinch.d); pinch.d = d;
+    } else if (ptrs.size === 1) { view.x -= dx / view.s; view.y -= dy / view.s; draw(); if (selected) showTip(selected); }
+  } else {
+    const h = pick(px, py);
+    const same = h === hover || (h && hover && h.spot && hover.spot && h.x === hover.x && h.y === hover.y);
+    if (!same) { hover = h; draw(); showTip(hover || selected); cv.style.cursor = h ? 'pointer' : ''; }
+  }
+  $('hud').textContent = `x ${Math.round((view.x + px / view.s) * DIV)}, y ${Math.round((view.y + py / view.s) * DIV)}`;
+});
+function up(e) {
+  const r = cv.getBoundingClientRect();
+  if (ptrs.size === 1 && !moved) { const h = pick(e.clientX - r.left, e.clientY - r.top); selected = h; showTip(h); if (tab === 'wands') renderWands(); draw(); }
+  ptrs.delete(e.pointerId); if (ptrs.size < 2) pinch = null; if (!ptrs.size) cv.classList.remove('drag');
+}
+cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', e => { ptrs.delete(e.pointerId); pinch = null; });
+cv.addEventListener('pointerleave', () => { if (hover) { hover = null; draw(); showTip(selected); } });
+$('zin').onclick = () => { const r = cv.getBoundingClientRect(); zoomAt(r.width / 2, r.height / 2, 1.6); };
+$('zout').onclick = () => { const r = cv.getBoundingClientRect(); zoomAt(r.width / 2, r.height / 2, 1 / 1.6); };
+$('zfit').onclick = fit;
+
+/* ---------- live refresh ---------- */
+let autoTimer = null, busy = false;
+const clock = t => new Date(t * 1000).toLocaleTimeString();
+function setStatus(text, err) { const s = $('status'); s.textContent = text; s.classList.toggle('err', !!err); }
+function toast(text) { const t = $('toast'); t.textContent = text; t.hidden = false; clearTimeout(toast.h); toast.h = setTimeout(() => t.hidden = true, 3500); }
+async function refresh(manual) {
+  if (busy) return; busy = true; $('refresh').classList.add('busy');
+  if (manual) setStatus('Scanning…');
+  try {
+    const before = D ? D.version : -1;
+    const r = await fetch('/api/refresh', { method: 'POST' });
+    const last = await r.json();
+    if (!r.ok) throw new Error(last.error || r.status);
+    if (last.version !== before) {
+      const oldKeys = new Set(items.map(i => i.key));
+      ingest(await (await fetch('/api/data')).json());
+      const fresh = items.filter(i => !oldKeys.has(i.key));
+      const freshTracked = fresh.filter(hasTracked).length, freshRare = fresh.filter(i => !isBox(i) && hasRare(i)).length, freshBox = fresh.filter(i => isBox(i) && i.notable).length;
+      if (before >= 0 && (freshTracked || freshRare || freshBox)) toast([freshTracked && `${freshTracked} new tracked item${freshTracked > 1 ? 's' : ''}`, freshRare && `${freshRare} with rare spells`, freshBox && `${freshBox} rare or unusual flask${freshBox > 1 ? 's' : ''}`].filter(Boolean).join(' · '));
+      render();
+    }
+    setStatus(`Scanned ${clock(last.time)} · ${last.chunks} area${last.chunks === 1 ? '' : 's'}, ${last.entity_files} item file${last.entity_files === 1 ? '' : 's'} changed`);
+  } catch (e) {
+    setStatus('Could not reach the companion app. Is it still running?', true);
+  } finally { busy = false; $('refresh').classList.remove('busy'); }
+}
+function setAuto(on) {
+  $('auto').setAttribute('aria-pressed', on); store.set('auto', on);
+  clearInterval(autoTimer); autoTimer = on ? setInterval(() => refresh(false), 10000) : null;
+}
+
+/* ---------- controls ---------- */
+$('q').addEventListener('input', render);
+$('sort').addEventListener('change', render);
+$('show').addEventListener('change', e => { show = e.target.value; $('pane').scrollTop = 0; render(); });
+for (const k of Object.keys(layers)) {
+  const b = $('layer-' + k); b.setAttribute('aria-pressed', layers[k]);
+  b.onclick = () => { layers[k] = !layers[k]; b.setAttribute('aria-pressed', layers[k]); store.set('layers', layers); if (hover && kindOf(hover) === k) hover = null; draw(); };
+}
+for (const k of Object.keys(filters)) $('f-' + k).onclick = e => { filters[k] = !filters[k]; e.currentTarget.setAttribute('aria-pressed', filters[k]); render(); };
+for (const k of Object.keys(lib)) $('l-' + k).onclick = e => { lib[k] = !lib[k]; e.currentTarget.setAttribute('aria-pressed', lib[k]); render(); };
+for (const k of Object.keys(itemf)) $('i-' + k).onclick = e => { itemf[k] = !itemf[k]; e.currentTarget.setAttribute('aria-pressed', itemf[k]); render(); };
+for (const k of Object.keys(matf)) $('m-' + k).onclick = e => { matf[k] = !matf[k]; e.currentTarget.setAttribute('aria-pressed', matf[k]); render(); };
+$('l-clear').onclick = () => { tracked.clear(); store.set('tracked', []); render(); };
+const TABS = [['tab-wands', 'wands'], ['tab-lib', 'lib'], ['tab-items', 'items'], ['tab-mat', 'mat']];
+for (const [id, t] of TABS) $(id).onclick = () => {
+  tab = t; for (const [i2, t2] of TABS) $(i2).setAttribute('aria-selected', t === t2);
+  $('q').value = ''; $('pane').scrollTop = 0; render();
+};
+$('refresh').onclick = () => refresh(true);
+$('auto').onclick = () => setAuto($('auto').getAttribute('aria-pressed') !== 'true');
+
+async function start() {
+  if (LIVE) {
+    $('live-btns').hidden = false; setStatus('Loading…');
+    // the app answers 503 while it loads game data and runs the first scan
+    for (;;) {
+      let r;
+      try { r = await fetch('/api/data'); }
+      catch { setStatus('Could not reach the companion app. Is it still running?', true); return; }
+      if (r.ok) { ingest(await r.json()); break; }
+      const st = await r.json().catch(() => ({}));
+      $('summary').textContent = st.error || st.status || 'Starting…';
+      setStatus(st.error ? 'Could not start' : 'Scanning…', !!st.error);
+      if (st.error) return;
+      await new Promise(res => setTimeout(res, 1500));
+    }
+    const l = D.last; if (l && l.time) setStatus(`Scanned ${clock(l.time)}`);
+    setAuto(store.get('auto', false));
+  } else {
+    ingest(D);
+    setStatus(`Snapshot from ${D.snapshot}. Run the companion app for live refresh.`);
+  }
+  new ResizeObserver(resize).observe(cv);
+  resize(); fit(); render();
+  const first = items.find(it => it.kind === 'wand' && hasTracked(it));
+  if (first) { selected = first; flyTo(first.ix, first.iy, 1.2); render(); }
+}
+start();
+</script>
+</body>
+</html>

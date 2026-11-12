@@ -1,0 +1,9 @@
+# recreated by build.bat
+.venv/
+build/
+# map tile cache when run from source
+cache/
+__pycache__/
+*.pyc
+# built app (rebuild with build.bat)
+dist/
