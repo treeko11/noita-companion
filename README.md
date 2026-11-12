@@ -2,6 +2,19 @@
 
 A map of your Noita save that refreshes while you play: every wand (with stats and always-casts), loose spell, flask, pouch and item the game has loaded, with spell, item and material tracking and rarity from the Noita wiki.
 
+![The whole explored world, with every wand the game has loaded and two tracked items](screenshots/overview.png)
+
+## Screenshots
+
+| | |
+|---|---|
+| ![A wand's stats, always-cast and spells, with a rare spell's odds](screenshots/wand.png) | ![Tracking Kiuaskivi: 8 found, stepping through them with Show next](screenshots/items.png) |
+| **Wands**: stats, always-casts and spells, with rare spells flagged by their spawn odds | **Items**: track anything from the wiki's item list and step through every copy |
+| ![The spell library sorted rarest first](screenshots/spells.png) | ![A rare Diminution flask among every flask and pouch](screenshots/flasks.png) |
+| **Spells**: every spell, rarest first, with counts on the map and ones you've never picked up | **Flasks & pouches**: contents and odds, with rare and unusual ones called out |
+| ![Tracking Lively Concoction across the world](screenshots/materials.png) | |
+| **Materials**: rare materials in the world and in flasks, marked on the map | |
+
 ## Download
 
 **[Download Noita-Companion.exe](https://github.com/treeko11/noita-companion/releases/latest/download/Noita-Companion.exe)** (Windows 10/11), or see [all releases](https://github.com/treeko11/noita-companion/releases).
