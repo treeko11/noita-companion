@@ -4,6 +4,45 @@ A map of your Noita save that refreshes while you play: every wand (with stats a
 
 ![The whole explored world, with every wand the game has loaded and two tracked items](screenshots/overview.png)
 
+## Features
+
+**The map**
+- Draws every area the game has saved, including parallel worlds, from your save's own world files
+- Markers for every wand, loose spell, flask, pouch and item, each with its own layer you can switch off
+- Pan, zoom and hover for details; world coordinates under the cursor
+
+**Wands**
+- Full stats: spells per cast, cast delay, recharge, capacity, max mana, mana charge, spread, shuffle
+- Always-cast spells listed separately from the rest
+- Filter by non-shuffle, always-casts, rare spells, spells you've never picked up, or wands you've never held; sort by any stat
+
+**Spells**
+- Library of all 422 spells, grouped by type, with how many of each are on the map
+- Spawn odds per spell roll from the wiki's tier weights; spells under 0.3% are marked rare
+- Highlights spells you've never picked up in any run, read from your save's progress
+
+**Flasks and pouches**
+- Contents of every flask and pouch, with how full it is
+- Odds from the wiki's flask and pouch tables: anything under 1% is rare (Healthium is 0.0383%), and anything outside the normal spawn pool, like a flask of gold, is flagged as unusual
+
+**Items**
+- Every item from the wiki's item list, with its icon, description, effect and odds from pedestals and chests
+- Hearts, chests, Spell Refreshers, essences and other pickups too
+
+**Materials**
+- Every material in the loaded world and inside flasks, rarest first, with pixel counts
+- Marks every spot a material appears on the map
+
+**Tracking**
+- Click any spell, item or material to track it: everything containing it gets a pink ring and a count in the tracking bar
+- **Show next** and **Previous** step through every copy, centring the map on each one
+- Your tracking choices are remembered between runs
+
+**While you play**
+- **Refresh** rescans the save in under a second when nothing has changed; only areas that changed are redrawn
+- **Auto** rescans every 10 seconds and pops up a notice when a tracked or rare thing appears
+- Works offline: wiki data and icons ship with the app and refresh weekly when you're online
+
 ## Screenshots
 
 | | |
