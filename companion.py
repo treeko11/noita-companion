@@ -27,7 +27,18 @@ WORLD_W = 35840          # width of one world; parallel worlds repeat every WORL
 TS = CH // DIV
 TYPES = ['Projectile', 'Static projectile', 'Projectile modifier', 'Multicast', 'Material', 'Other', 'Utility', 'Passive']
 RARE_SPELL = 0.003       # under 0.3% per spell roll at its best tier counts as rare
-RARE_FLASK = 0.01        # a flask or pouch material counts as rare under 1% of that container
+# Spells always flagged rare/notable, whatever their spawn odds (picked by hand).
+NOTABLE_SPELLS = {'NOLLA', 'MANA_REDUCE', 'DIVIDE_10', 'ADD_TRIGGER', 'BLOOD_MAGIC', 'SUMMON_WANDGHOST',
+                  'ENERGY_SHIELD', 'RAINBOW_TRAIL'}
+# Spells never flagged, even when their spawn odds are low (picked by hand).
+NOT_NOTABLE_SPELLS = {'DRAW_RANDOM', 'DRAW_RANDOM_X3', 'DRAW_3_RANDOM', 'RANDOM_SPELL', 'RANDOM_PROJECTILE',
+                      'RANDOM_MODIFIER', 'TEMPORARY_PLATFORM', 'TEMPORARY_WALL', 'INFESTATION', 'ANTI_HOMING',
+                      'BLOOD_TO_ACID', 'TOXIC_TO_ACID', 'WATER_TO_POISON',
+                      'ACID_TRAIL', 'BURN_TRAIL', 'FIRE_TRAIL', 'GUNPOWDER_TRAIL', 'OIL_TRAIL', 'POISON_TRAIL', 'WATER_TRAIL',
+                      'HITFX_CRITICAL_BLOOD', 'HITFX_CRITICAL_WATER', 'HITFX_EXPLOSION_SLIME', 'HITFX_EXPLOSION_SLIME_GIGA',
+                      'HITFX_EXPLOSION_ALCOHOL', 'HITFX_EXPLOSION_ALCOHOL_GIGA',
+                      'HITFX_TOXIC_CHARM'}
+RARE_FLASK = 0.01       # a flask or pouch material counts as rare under 1% of that container
 # Hand-picked world materials with no flask odds that are still worth flagging as loose pixels.
 # Metals (gold, silver, brass, diamond) are only notable inside a flask, so they are not listed here.
 RARE_WORLD = {'magic_liquid_hp_regeneration_unstable', 'creepy_liquid',
@@ -62,7 +73,8 @@ def load_spells(wiki):
         best = max(odds.values()) if odds else 0
         out[k] = dict(name=s['name'], icon=s['icon'], type=s['type'], order=i, odds=round(best, 6),
                       tiers=sorted(t for t, v in odds.items() if v >= best * 0.999) if odds else [],
-                      spawn_tiers=sorted(odds), rare=0 < best < RARE_SPELL)
+                      spawn_tiers=sorted(odds), notable=k in NOTABLE_SPELLS,
+                      rare=k in NOTABLE_SPELLS or (0 < best < RARE_SPELL and k not in NOT_NOTABLE_SPELLS))
     return out
 
 def material_order(wak):

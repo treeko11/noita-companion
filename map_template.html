@@ -188,7 +188,7 @@ canvas.drag { cursor: grabbing; }
         <option value="item">Other items</option>
       </select>
       <button class="chip" id="f-tracked" aria-pressed="false">Has tracked</button>
-      <button class="chip rare" id="f-rare" aria-pressed="false">Rare</button>
+      <button class="chip rare" id="f-rare" aria-pressed="false">Rare/notable</button>
       <button class="chip new" id="f-new" aria-pressed="false" data-wand>Has new spells</button>
       <button class="chip" id="f-ns" aria-pressed="false" data-wand>Non-shuffle</button>
       <button class="chip" id="f-ac" aria-pressed="false" data-wand>Always casts</button>
@@ -208,7 +208,7 @@ canvas.drag { cursor: grabbing; }
     </div>
     <div class="controls" id="lib-controls" hidden>
       <button class="chip" id="l-map" aria-pressed="false">On the map</button>
-      <button class="chip rare" id="l-rare" aria-pressed="false">Rare</button>
+      <button class="chip rare" id="l-rare" aria-pressed="false">Rare/notable</button>
       <button class="chip new" id="l-new" aria-pressed="false">Never picked up</button>
       <button class="chip" id="l-sort" aria-pressed="false">Rarest first</button>
       <button class="chip" id="l-clear">Clear tracking</button>
@@ -314,7 +314,8 @@ const pct = p => p >= 0.01 ? (p * 100).toFixed(1) + '%' : p >= 0.001 ? (p * 100)
 const tierText = t => !t.length ? '' : t.length === 1 ? `tier ${t[0]}` : `tiers ${t[0]}–${t[t.length - 1]}`;
 function oddsText(id) {
   const sp = S[id]; if (!sp) return '';
-  if (!sp.odds) return 'Not a random spawn';
+  if (!sp.odds) return 'Not a random spawn' + (sp.notable ? ' · notable' : '');
+  if (sp.notable) return `Notable · ${pct(sp.odds)} per spell roll at ${tierText(sp.tiers)}`;
   return `${pct(sp.odds)} per spell roll at ${tierText(sp.tiers)}` + (sp.locked ? ' · locked' : '');
 }
 const fmtN = n => n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e3 ? (n / 1e3).toFixed(1) + 'k' : String(n);
@@ -322,7 +323,7 @@ const fmtN = n => n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e3 ? (n / 1e3).t
 function icon(id) {
   const w = document.createElement('span');
   w.className = 'ic' + (isNew(id) ? ' n' : '') + (isRare(id) ? ' r' : '') + (tracked.has(id) ? ' m' : '');
-  w.title = name(id) + (isRare(id) ? ' · rare' : '') + (isNew(id) ? ' · never picked up' : '');
+  w.title = name(id) + (isRare(id) ? ' · rare/notable' : '') + (isNew(id) ? ' · never picked up' : '');
   const sp = S[id];
   if (sp && sp.icon) { const im = document.createElement('img'); im.src = sp.icon; im.alt = ''; w.append(im); }
   else { const s = document.createElement('span'); s.className = 'noicon'; s.textContent = '?'; w.append(s); }
@@ -493,7 +494,7 @@ function statsEl(it) {
 function tagsEl(it) {
   const f = document.createDocumentFragment();
   const add = (t, c) => { const s = document.createElement('span'); s.className = 'tag ' + c; s.textContent = t; f.append(s); };
-  const nr = new Set(it.all.filter(isRare)).size; if (nr) add(it.kind === 'card' ? 'Rare' : nr === 1 ? 'Rare spell' : `${nr} rare`, 'rare');
+  const nr = new Set(it.all.filter(isRare)).size; if (nr) add(it.kind === 'card' ? 'Rare/notable' : nr === 1 ? 'Rare/notable spell' : `${nr} rare/notable`, 'rare');
   if (it.kind === 'wand' && it.shuffle === false) add('Non-shuffle', 'ns');
   const n = new Set(it.all.filter(isNew)).size; if (n) add(it.kind === 'card' ? 'New' : n === 1 ? '1 new' : `${n} new`, 'new');
   if (it.picked) add('Held before', '');
@@ -512,7 +513,7 @@ function renderWands() {
   const nt = rows.filter(hasTracked).length, nr = rows.filter(hasRare).length;
   if (show === 'item') rows.sort((a, b) => hasTracked(b) - hasTracked(a) || hasRare(b) - hasRare(a) || a.item.localeCompare(b.item));
   const label = { wand: 'wands', card: 'loose spells', container: 'flasks and pouches', item: 'items' }[show];
-  $('summary').innerHTML = `Showing <b>${rows.length}</b> ${label} · <b>${nr}</b> ${show === 'container' ? 'rare or unusual' : 'with rare spells'}` + ((show === 'container' ? trackedMats.size : tracked.size) ? ` · <b>${nt}</b> tracked` : '');
+  $('summary').innerHTML = `Showing <b>${rows.length}</b> ${label} · <b>${nr}</b> ${show === 'container' ? 'rare or unusual' : show === 'item' ? 'rare' : 'with rare/notable spells'}` + ((show === 'container' ? trackedMats.size : tracked.size) ? ` · <b>${nt}</b> tracked` : '');
   if (!rows.length) { const e = document.createElement('div'); e.className = 'empty'; e.textContent = 'Nothing loaded matches these filters. Only areas the game has written to disk are in the save, so it may still be out there.'; list.append(e); }
   for (const it of rows.slice(0, 300)) {
     const b = document.createElement('button'); b.className = 'row' + (it === selected ? ' sel' : '') + (it.kind === 'item' ? ' irow' : '');
@@ -551,7 +552,7 @@ function renderLib() {
   const ids = Object.keys(S).filter(id => (!t || name(id).toLowerCase().includes(t) || id.toLowerCase().includes(t.replace(/ /g, '_')))
     && (!lib.map || onMap[id]) && (!lib.new || isNew(id)) && (!lib.rare || isRare(id)));
   const total = Object.keys(S).length, known = Object.values(S).filter(s => s.known).length, rare = Object.values(S).filter(s => s.rare).length;
-  $('summary').innerHTML = `<b>${known}</b> of ${total} picked up in past runs · <b>${Object.keys(onMap).length}</b> kinds on the map · <b>${rare}</b> rare (under ${pct(D.rare_threshold || 0.003)} per roll). Click to track.`;
+  $('summary').innerHTML = `<b>${known}</b> of ${total} picked up in past runs · <b>${Object.keys(onMap).length}</b> kinds on the map · <b>${rare}</b> rare/notable (under ${pct(D.rare_threshold || 0.003)} per roll, or picked by hand). Click to track.`;
   if (!ids.length) { const e = document.createElement('div'); e.className = 'empty'; e.textContent = 'No spells match.'; wrap.append(e); return; }
   const tile = id => {
     const b = document.createElement('button');
@@ -804,7 +805,7 @@ function showTip(it) {
         const li = document.createElement('li'); if (tracked.has(id)) li.className = 'm';
         const n = document.createElement('span'); n.textContent = name(id); n.title = oddsText(id);
         const tg = document.createElement('span'); tg.className = 'tags';
-        if (isRare(id)) { const t = document.createElement('span'); t.className = 'tag rare'; t.textContent = pct(S[id].odds); tg.append(t); }
+        if (isRare(id)) { const t = document.createElement('span'); t.className = 'tag rare'; t.textContent = S[id].notable ? 'Notable' : pct(S[id].odds); tg.append(t); }
         if (isNew(id)) { const t = document.createElement('span'); t.className = 'tag new'; t.textContent = 'New'; tg.append(t); }
         li.append(icon(id), n, tg); ol.append(li);
       });
@@ -919,7 +920,7 @@ async function refresh(manual) {
       ingest(await (await fetch('/api/data')).json());
       const fresh = items.filter(i => !oldKeys.has(i.key));
       const freshTracked = fresh.filter(hasTracked).length, freshRare = fresh.filter(i => !isBox(i) && hasRare(i)).length, freshBox = fresh.filter(i => isBox(i) && i.notable).length;
-      if (before >= 0 && (freshTracked || freshRare || freshBox)) toast([freshTracked && `${freshTracked} new tracked item${freshTracked > 1 ? 's' : ''}`, freshRare && `${freshRare} with rare spells`, freshBox && `${freshBox} rare or unusual flask${freshBox > 1 ? 's' : ''}`].filter(Boolean).join(' · '));
+      if (before >= 0 && (freshTracked || freshRare || freshBox)) toast([freshTracked && `${freshTracked} new tracked item${freshTracked > 1 ? 's' : ''}`, freshRare && `${freshRare} with rare/notable spells`, freshBox && `${freshBox} rare or unusual flask${freshBox > 1 ? 's' : ''}`].filter(Boolean).join(' · '));
       render();
     }
     setStatus(`Scanned ${clock(last.time)} · ${last.chunks} area${last.chunks === 1 ? '' : 's'}, ${last.entity_files} item file${last.entity_files === 1 ? '' : 's'} changed`);

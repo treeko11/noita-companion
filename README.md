@@ -20,7 +20,7 @@ A map of your Noita save that refreshes while you play: every wand (with stats a
 
 **Spells**
 - Library of all 422 spells, grouped by type, with how many of each are on the map
-- Spawn odds per spell roll from the wiki's tier weights; spells under 0.3% are marked rare
+- Spawn odds per spell roll from the wiki's tier weights; spells under 0.3% are marked rare/notable, along with a hand-picked list of standouts like Add Mana, Divide By 10 and Nolla (and a few low-odds spells that aren't worth chasing, like the random-spell and trail modifiers, are left out)
 - Highlights spells you've never picked up in any run, read from your save's progress
 
 ![The spell library sorted rarest first](screenshots/spells.png)
