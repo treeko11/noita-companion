@@ -2,8 +2,6 @@
 
 A map of your Noita save that refreshes while you play: every wand (with stats and always-casts), loose spell, flask, pouch and item the game has loaded, with spell, item and material tracking and rarity from the Noita wiki.
 
-![The whole explored world, with every wand the game has loaded and two tracked items](screenshots/overview.png)
-
 ## Features
 
 **The map**
@@ -11,27 +9,39 @@ A map of your Noita save that refreshes while you play: every wand (with stats a
 - Markers for every wand, loose spell, flask, pouch and item, each with its own layer you can switch off
 - Pan, zoom and hover for details; world coordinates under the cursor
 
+![The whole explored world, with every wand the game has loaded and two tracked items](screenshots/overview.png)
+
 **Wands**
 - Full stats: spells per cast, cast delay, recharge, capacity, max mana, mana charge, spread, shuffle
 - Always-cast spells listed separately from the rest
 - Filter by non-shuffle, always-casts, rare spells, spells you've never picked up, or wands you've never held; sort by any stat
+
+![A wand's stats, always-cast and spells, with a rare spell's odds](screenshots/wand.png)
 
 **Spells**
 - Library of all 422 spells, grouped by type, with how many of each are on the map
 - Spawn odds per spell roll from the wiki's tier weights; spells under 0.3% are marked rare
 - Highlights spells you've never picked up in any run, read from your save's progress
 
+![The spell library sorted rarest first](screenshots/spells.png)
+
 **Flasks and pouches**
 - Contents of every flask and pouch, with how full it is
 - Odds from the wiki's flask and pouch tables: anything under 1% is rare (Healthium is 0.0383%), and anything outside the normal spawn pool, like a flask of gold, is flagged as unusual
+
+![A rare Diminution flask among every flask and pouch](screenshots/flasks.png)
 
 **Items**
 - Every item from the wiki's item list, with its icon, description, effect and odds from pedestals and chests
 - Hearts, chests, Spell Refreshers, essences and other pickups too
 
+![Tracking Kiuaskivi: 8 found, stepping through them with Show next](screenshots/items.png)
+
 **Materials**
 - Every material in the loaded world and inside flasks, rarest first, with pixel counts
 - Marks every spot a material appears on the map
+
+![Tracking Lively Concoction across the world](screenshots/materials.png)
 
 **Tracking**
 - Click any spell, item or material to track it: everything containing it gets a pink ring and a count in the tracking bar
@@ -42,17 +52,6 @@ A map of your Noita save that refreshes while you play: every wand (with stats a
 - **Refresh** rescans the save in under a second when nothing has changed; only areas that changed are redrawn
 - **Auto** rescans every 10 seconds and pops up a notice when a tracked or rare thing appears
 - Works offline: wiki data and icons ship with the app and refresh weekly when you're online
-
-## Screenshots
-
-| | |
-|---|---|
-| ![A wand's stats, always-cast and spells, with a rare spell's odds](screenshots/wand.png) | ![Tracking Kiuaskivi: 8 found, stepping through them with Show next](screenshots/items.png) |
-| **Wands**: stats, always-casts and spells, with rare spells flagged by their spawn odds | **Items**: track anything from the wiki's item list and step through every copy |
-| ![The spell library sorted rarest first](screenshots/spells.png) | ![A rare Diminution flask among every flask and pouch](screenshots/flasks.png) |
-| **Spells**: every spell, rarest first, with counts on the map and ones you've never picked up | **Flasks & pouches**: contents and odds, with rare and unusual ones called out |
-| ![Tracking Lively Concoction across the world](screenshots/materials.png) | |
-| **Materials**: rare materials in the world and in flasks, marked on the map | |
 
 ## Download
 
