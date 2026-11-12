@@ -2,9 +2,15 @@
 
 A map of your Noita save that refreshes while you play: every wand (with stats and always-casts), loose spell, flask, pouch and item the game has loaded, with spell, item and material tracking and rarity from the Noita wiki.
 
+## Download
+
+**[Download Noita-Companion.exe](https://github.com/treeko11/noita-companion/releases/latest/download/Noita-Companion.exe)** (Windows 10/11), or see [all releases](https://github.com/treeko11/noita-companion/releases).
+
+Needs Noita installed through Steam and the Microsoft Edge WebView2 runtime (already on most PCs). The exe isn't code-signed, so Windows SmartScreen may say "Windows protected your PC": choose **More info → Run anyway**.
+
 ## Using it
 
-Run `dist\Noita Companion.exe`. It finds your save (`%USERPROFILE%\AppData\LocalLow\Nolla_Games_Noita\save00`) and your Steam install of Noita on its own and opens in its own window.
+Run `Noita-Companion.exe` (or `dist\Noita Companion.exe` if you built it yourself). It finds your save (`%USERPROFILE%\AppData\LocalLow\Nolla_Games_Noita\save00`) and your Steam install of Noita on its own and opens in its own window.
 
 - The first start draws every explored area (around 20–60 seconds). Later starts take seconds.
 - **Refresh** rescans now; **Auto** rescans every 10 seconds. The game writes areas to disk every few minutes while you play, so the area around you can lag behind.
