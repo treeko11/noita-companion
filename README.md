@@ -20,6 +20,12 @@ Options (from a command prompt): `--browser` opens it in your web browser instea
 - Spell, material and item names, icons and spawn odds: the Noita wiki (noita.wiki.gg), cached for a week and shipped inside the app for offline use.
 - From the game files (`data.wak`): only the textures used to draw the map, and the material numbering the save uses for flask contents.
 
+## Credits
+
+- Spell, item and material data and descriptions (`wiki_cache.json`) come from [the Noita Wiki](https://noita.wiki.gg/), available under [CC BY-NC-SA 3.0](https://creativecommons.org/licenses/by-nc-sa/3.0/).
+- The icons in `seed_icons/` are Noita's own sprites, © Nolla Games, fetched from the wiki.
+- This is an unofficial fan tool, not affiliated with Nolla Games.
+
 ## Rebuilding
 
 Run `build.bat`. It sets up a private Python environment in `.venv`, refreshes the bundled wiki data, and writes a new `dist\Noita Companion.exe`. To run from source instead: `python companion.py` (opens in your browser).
