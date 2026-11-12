@@ -47,7 +47,9 @@ RARE_WORLD = {'magic_liquid_hp_regeneration_unstable', 'creepy_liquid',
 
 # ---------------------------------------------------------------- locating files
 def find_save():
-    return os.path.join(os.environ.get('USERPROFILE', os.path.expanduser('~')), 'AppData', 'LocalLow', 'Nolla_Games_Noita', 'save00')
+    real = os.path.join(os.environ.get('USERPROFILE', os.path.expanduser('~')), 'AppData', 'LocalLow', 'Nolla_Games_Noita', 'save00')
+    sample = os.path.join(RES, 'fixtures', 'save00')     # bundled sample, for machines without Noita
+    return real if os.path.isdir(os.path.join(real, 'world')) or not os.path.isdir(sample) else sample
 
 def find_wak():
     roots = [r'C:\Program Files (x86)\Steam']
@@ -117,10 +119,25 @@ def container_note(kind, mat, wiki):
     return dict(odds=None, notable=True, why=why)
 
 # ---------------------------------------------------------------- per-chunk work (runs in worker processes)
+META = os.path.join(RES, 'fixtures', 'game_meta.json')
+
+def has_game(wakp): return bool(wakp) and os.path.exists(wakp)
+
+def game_tables(wakp):
+    """(material textures, material numbering, CellData count). From Noita's data.wak when installed;
+    otherwise from fixtures/game_meta.json (flat colours), so the app also runs without the game (cloud sessions)."""
+    if has_game(wakp):
+        wak = Wak(wakp)
+        order, base = material_order(wak)
+        return noita_map.material_table(wak), order, base
+    meta = json.load(open(META, encoding='utf-8'))
+    mats = {k: np.array(c, np.uint8).reshape(1, 1, 4) for k, c in meta['colors'].items()}
+    return mats, meta['material_order'], meta['material_base']
+
 _mats = None
 def _init_worker(wakp):
     global _mats
-    _mats = noita_map.material_table(Wak(wakp))
+    _mats = game_tables(wakp)[0]
 
 def process_chunk(args):
     path, cx, cy = args
@@ -211,12 +228,10 @@ class State:
         self.chunks, self.tiles, self.ents = {}, {}, {}
         self.pool = None
         os.makedirs(os.path.join(cache_dir, 'tiles'), exist_ok=True)
-        wak = Wak(wakp)
         self.wiki = wiki_data.load()
-        mats = noita_map.material_table(wak)
+        mats, self.mat_order, self.mat_base = game_tables(wakp)
         self.spells = load_spells(self.wiki)
         self.mat_info = load_materials(self.wiki, mats)
-        self.mat_order, self.mat_base = material_order(wak)
         self.catalog = item_catalog(self.wiki)
         self.by_sprite = {}
         for it in self.wiki.get('items', []): self.by_sprite.setdefault(it['sprite'].lower(), it['name'])
@@ -393,7 +408,7 @@ class Lazy:
     def _load(self):
         a = self.args
         try:
-            if not a.wak or not os.path.exists(a.wak):
+            if not has_game(a.wak) and not os.path.exists(META):
                 raise RuntimeError("Could not find Noita's game data (data.wak). Is Noita installed through Steam?")
             if not os.path.isdir(os.path.join(a.save, 'world')):
                 raise RuntimeError(f'No Noita save found at {a.save}. Start a run in Noita first.')
@@ -475,7 +490,7 @@ def main():
     a = ap.parse_args()
     seed_data()
     if a.export:
-        if not a.wak or not os.path.exists(a.wak): sys.exit("Could not find Noita's data.wak. Pass --wak <path>.")
+        if not has_game(a.wak) and not os.path.exists(META): sys.exit("Could not find Noita's data.wak. Pass --wak <path>.")
         state = State(a.save, a.wak, a.cache, a.workers)
         state.refresh()
         return export(state, a.export)
@@ -484,6 +499,8 @@ def main():
     srv = ThreadingHTTPServer(('127.0.0.1', port), make_handler(lazy, template))
     url = f'http://127.0.0.1:{port}/'
     print('companion running at', url)
+    print('save:', a.save)
+    print('game data:', a.wak if has_game(a.wak) else 'not found, using fixtures/game_meta.json (flat map colours)')
     window = FROZEN and not a.browser and not a.no_browser
     if window:
         try:

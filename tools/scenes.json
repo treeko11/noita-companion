@@ -1,0 +1,8 @@
+[
+  {"name": "overview", "js": "selected = null; showTip(null); $('tab-wands').click(); fit(); render(); $('toast').hidden = true; 1"},
+  {"name": "wand", "js": "(() => { const w = items.filter(i => i.kind === 'wand' && (i.always || []).length && hasRare(i) && i.x < 17920).sort((a, b) => b.all.length - a.all.length)[0] || items.find(i => i.kind === 'wand' && hasRare(i)); selected = w; flyTo(w.ix, w.iy, 1.6); render(); showTip(w); $('toast').hidden = true; return 1; })()"},
+  {"name": "items", "js": "(() => { $('tab-items').click(); if (!trackedItems.has('Kiuaskivi')) toggleItem('Kiuaskivi'); const k = siblings(items.find(i => i.item === 'Kiuaskivi')).list; goTo(k[0]); view.s = 1.1; flyTo(k[0].ix, k[0].iy, 1.1); render(); showTip(k[0]); $('toast').hidden = true; return 1; })()"},
+  {"name": "spells", "js": "(() => { selected = null; showTip(null); $('tab-lib').click(); if ($('l-sort').getAttribute('aria-pressed') !== 'true') $('l-sort').click(); fit(); render(); $('toast').hidden = true; return 1; })()"},
+  {"name": "flasks", "js": "(() => { $('l-sort').click(); $('tab-wands').click(); $('show').value = 'container'; $('show').dispatchEvent(new Event('change')); const f = items.find(i => i.name === 'Diminution flask') || items.find(i => isBox(i) && i.notable); selected = f; flyTo(f.ix, f.iy, 1.6); render(); showTip(f); $('toast').hidden = true; return 1; })()"},
+  {"name": "materials", "js": "(() => { $('show').value = 'wand'; $('show').dispatchEvent(new Event('change')); $('tab-mat').click(); const k = 'magic_liquid_hp_regeneration_unstable'; if (!trackedMats.has(k)) toggleMat(k); const sp = spotsOf(k)[0]; goTo(sp); flyTo(sp.ix, sp.iy, 1.4); render(); showTip(sp); $('toast').hidden = true; return 1; })()"}
+]

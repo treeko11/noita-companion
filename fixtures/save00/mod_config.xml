@@ -1,0 +1,58 @@
+<Mods>
+  <Mod enabled="0" name="quant.ew" settings_fold_open="0" workshop_item_id="0" >
+  </Mod>
+  <Mod enabled="1" name="oxygen_gauge" settings_fold_open="0" workshop_item_id="2050660837" >
+  </Mod>
+  <Mod enabled="1" name="hover_gauge" settings_fold_open="0" workshop_item_id="1984755293" >
+  </Mod>
+  <Mod enabled="1" name="glowing_health_upgrade" settings_fold_open="0" workshop_item_id="2191848289" >
+  </Mod>
+  <Mod enabled="1" name="Random_Robesv2" settings_fold_open="0" workshop_item_id="1989654152" >
+  </Mod>
+  <Mod enabled="1" name="alchemy_recipes_display" settings_fold_open="0" workshop_item_id="2930582021" >
+  </Mod>
+  <Mod enabled="1" name="noitad_game_over" settings_fold_open="0" workshop_item_id="2241539626" >
+  </Mod>
+  <Mod enabled="1" name="less_inaccuracies" settings_fold_open="0" workshop_item_id="2963870452" >
+  </Mod>
+  <Mod enabled="1" name="inventory_sorter" settings_fold_open="0" workshop_item_id="3421836233" >
+  </Mod>
+  <Mod enabled="1" name="removable_perks" settings_fold_open="0" workshop_item_id="2220664271" >
+  </Mod>
+  <Mod enabled="0" name="starting_loadouts" settings_fold_open="0" workshop_item_id="0" >
+  </Mod>
+  <Mod enabled="0" name="nightmare" settings_fold_open="0" workshop_item_id="0" >
+  </Mod>
+  <Mod enabled="0" name="daily_practice" settings_fold_open="0" workshop_item_id="0" >
+  </Mod>
+  <Mod enabled="0" name="better-font" settings_fold_open="0" workshop_item_id="2098567286" >
+  </Mod>
+  <Mod enabled="0" name="translation_fi" settings_fold_open="0" workshop_item_id="0" >
+  </Mod>
+  <Mod enabled="0" name="evaisa.mp" settings_fold_open="0" workshop_item_id="0" >
+  </Mod>
+  <Mod enabled="1" name="disable-mod-restrictions" settings_fold_open="0" workshop_item_id="3440115864" >
+  </Mod>
+  <Mod enabled="1" name="leezo_goldsucker_mod" settings_fold_open="0" workshop_item_id="3002137220" >
+  </Mod>
+  <Mod enabled="1" name="minidump" settings_fold_open="0" workshop_item_id="0" >
+  </Mod>
+  <Mod enabled="1" name="evaisa.material_limit" settings_fold_open="0" workshop_item_id="3042085040" >
+  </Mod>
+  <Mod enabled="1" name="cheatgui" settings_fold_open="0" workshop_item_id="1984977713" >
+  </Mod>
+  <Mod enabled="1" name="spelldesc" settings_fold_open="0" workshop_item_id="3419582553" >
+  </Mod>
+  <Mod enabled="0" name="example" settings_fold_open="0" workshop_item_id="0" >
+  </Mod>
+  <Mod enabled="1" name="cxredix_animated_tower_wands" settings_fold_open="0" workshop_item_id="3693251644" >
+  </Mod>
+  <Mod enabled="1" name="newly_secret_highlighter" settings_fold_open="0" workshop_item_id="3627238623" >
+  </Mod>
+  <Mod enabled="1" name="holy_mountain_collapse_trigger_outline" settings_fold_open="0" workshop_item_id="3643594466" >
+  </Mod>
+  <Mod enabled="1" name="cartographer" settings_fold_open="0" workshop_item_id="3777006120" >
+  </Mod>
+  <Mod enabled="0" name="foolish_flame" settings_fold_open="0" workshop_item_id="3795285917" >
+  </Mod>
+</Mods>

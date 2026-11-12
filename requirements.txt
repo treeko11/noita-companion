@@ -1,0 +1,5 @@
+# running from source: python companion.py
+numpy
+pillow
+# packaged app window (build.bat installs this, with pyinstaller)
+pywebview; sys_platform == "win32"
