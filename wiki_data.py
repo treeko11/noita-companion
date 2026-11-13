@@ -7,6 +7,8 @@ Sources:
   - Cargo table "Materials": id, name, type, tags, images
   - Page "Potions":          regular flask pools and odds
   - Page "Powder Pouch":     pouch pools and odds
+  - Page "Items":            pickup items and their odds
+  - Cargo table "Perks":     id, name, icon, description
 """
 import os, re, json, time, urllib.request, urllib.parse
 
@@ -102,8 +104,11 @@ def build():
         for x in items: pouch[x] = pouch.get(x, 0) + pct(share) / len(items)
 
     items = parse_items(wikitext('Items'))
+    perks = [p for p in cargo('Perks', '_pageName=page,Name,Image,Description,id,Stackable,NotAPerk,Unimplemented')
+             if p.get('id') and p.get('NotAPerk') != '1' and p.get('Unimplemented') != '1']
     urls = image_urls([s['image'] for s in spells] + [m['icon'].replace('File:', '') for m in mats if m.get('icon')]
-                      + [m['image'] for m in mats if m.get('image')] + [it['sprite'] + '.png' for it in items])
+                      + [m['image'] for m in mats if m.get('image')] + [it['sprite'] + '.png' for it in items]
+                      + [p['Image'] for p in perks if p.get('Image')])
     for it in items: it['icon'] = urls.get(it['sprite'] + '.png')
     out = dict(
         fetched=time.time(), source='https://noita.wiki.gg/',
@@ -118,6 +123,8 @@ def build():
         pouch={k: round(v, 7) for k, v in pouch.items() if k},
         pools={k: [x for x in v if x] for k, v in pools.items()},
         items=items,
+        perks={p['id']: dict(name=p['Name'], page=p['page'], description=plain(p.get('Description') or ''),
+                             icon=urls.get(p.get('Image')), stackable=p.get('Stackable') == '1') for p in perks},
     )
     return out
 
@@ -150,18 +157,25 @@ def parse_items(text):
                         odds=odds, other=plain(cells[7]) if len(cells) > 7 else ''))
     return out
 
+def read_cache():
+    with open(CACHE, encoding='utf-8') as f: return json.load(f)
+
+
 def load(refresh=False):
+    """The cached wiki data, rebuilt from the wiki when older than a week (or missing a newer table, e.g. perks)."""
     if not refresh and os.path.exists(CACHE):
-        data = json.load(open(CACHE, encoding='utf-8'))
-        if time.time() - data.get('fetched', 0) < MAX_AGE: return data
+        data = read_cache()
+        if time.time() - data.get('fetched', 0) < MAX_AGE and 'perks' in data: return data
     try:
         data = build()
     except Exception as ex:
         if os.path.exists(CACHE):
             print('wiki unreachable, using cached data:', ex)
-            return json.load(open(CACHE, encoding='utf-8'))
+            return read_cache()
         raise
-    json.dump(data, open(CACHE, 'w', encoding='utf-8'))
+    tmp = CACHE + '.tmp'
+    with open(tmp, 'w', encoding='utf-8') as f: json.dump(data, f)
+    os.replace(tmp, CACHE)
     return data
 
 if __name__ == '__main__':

@@ -15,13 +15,14 @@ A local Windows app that reads a Noita save (`%USERPROFILE%\AppData\LocalLow\Nol
 
 | File | Role |
 |---|---|
-| `companion.py` | App: game/wiki data loading, rarity rules, `State` (scan + incremental refresh), HTTP API, export, `main()` (window/browser) |
-| `noita_wands.py` | Parses `world/entities_*.bin`: wands (`read_ability`), cards, flasks/pouches (MaterialInventoryComponent), other items. `scan_file(path)` → list of dicts |
-| `noita_map.py` | Renders `world/world_*.png_petri` chunks with material textures from `data.wak` (`material_table`, `render_chunk`) |
-| `noita_decomp.py` | FastLZ decompression (levels 1 and 2) + `load(path)` for the save's `.bin`/`.png_petri` files |
+| `companion.py` | App: rarity rules, wiki → app tables (`load_spells`, `load_materials`, `item_catalog`), tile building (`process_chunk`, runs in worker processes), `State` (`refresh()` = `_scan_world` + `_scan_entities` + `_scan_run`; `data()` builds the page JSON from `_items`, `_add_world_materials`, `_inventory`, `_run_state`), HTTP API, export, `main()` |
+| `noita_wands.py` | Parses `world/entities_*.bin`: wands (`read_ability`), cards, flasks/pouches (MaterialInventoryComponent), Holy Mountain perk altars (`read_perk_id`), shop prices (`read_cost`), other items. `scan_file(path)` → list of dicts |
+| `inventory.py` | Parses `player.xml` (carried wands, spells, flasks, hp, gold) and `world_state.xml` (perks picked, orbs, fungal shifts, Holy Mountain flags). `read(save)`; `python inventory.py` prints it |
+| `noita_map.py` | Map chunks: `read_chunk` (cells, material names, custom colours), `render_cells` (RGBA with textures from `material_table`), `on_sky` (opaque, over the background colour) |
+| `noita_decomp.py` | FastLZ decompression (levels 1 and 2) + `load(path)` for the save's `.bin`/`.png_petri` files. Copies use slices, about 3.5× faster than byte-by-byte |
 | `wak.py` | Reads `data.wak` (game data archive; plain index, no encryption) |
 | `wiki_data.py` | Fetches spell/material/item data and odds from noita.wiki.gg and caches `wiki_cache.json` (7 days) |
-| `map_template.html` | The whole UI (single file, vanilla JS + canvas). `/*DATA*/null` is replaced with JSON only for static `--export`; live mode fetches `/api/data` |
+| `map_template.html` | The whole UI (single file, vanilla JS + canvas). `/*DATA*/null` is replaced with JSON only for static `--export`; live mode fetches `/api/data`. Found-tab filters live in one `FILTERS` table (test + which kinds it applies to; chips hide themselves); sorting per kind in `SORTS`; DOM built with `el()` / `tag()` |
 | `build.bat` | Recreates `.venv`, refreshes wiki data + `seed_icons/`, runs PyInstaller → `dist\Noita Companion.exe` |
 | `tools/screenshots.py`, `tools/scenes.json` | Headless Edge/Chrome screenshot tool (used for the README images and for visual checks) |
 | `tools/make_fixture.py`, `fixtures/` | Sample save + material table so the app runs without Noita (cloud sessions) |
@@ -31,7 +32,7 @@ A local Windows app that reads a Noita save (`%USERPROFILE%\AppData\LocalLow\Nol
 ### Running and checking
 - **Without Noita (cloud sessions)**: `find_save()` falls back to `fixtures/save00` (a slice of the user's save: the start area and first Holy Mountains, x -3584..1536, y -512..3072: 61 map areas, 24 wands, 55 loose spells, 7 flasks, 2 pouches, 14 items, plus `player.xml` and `world_state.xml`). `game_tables()` falls back to `fixtures/game_meta.json` (material numbering + one colour per material), so the map draws in flat colours. Regenerate both on the user's PC with `python tools/make_fixture.py`.
 - From source: `python companion.py` (browser) or `python companion.py --no-browser --port 8799` (server only). Source mode keeps its tile cache in `./cache` (git-ignored).
-- API: `GET /api/data` (503 + `{status}` while the first scan runs), `POST /api/refresh`, `GET /tile/<cx>_<cy>.png`, `GET /icon/<name>`.
+- API: `GET /api/data` (503 + `{status}` while the first scan runs), `POST /api/refresh`, `GET /tile/<cx>_<cy>.png` (¼ scale), `GET /tile/full/<cx>_<cy>.png` (1:1, drawn on first request, cached in `tiles_full/`, oldest pruned past 800 files, deleted when the chunk changes), `GET /icon/<name>`.
 - Quick data check: `curl -s http://127.0.0.1:8799/api/data > d.json` and inspect with Python.
 - Visual check: `tools/screenshots.py` with your own scenes file (see its docstring). The page exposes its globals (`items`, `S` spells, `M` materials, `C` item catalog, `goTo`, `flyTo`, `render`, `showTip`, `toggleItem`...).
 - Syntax check of the page script: extract the last `<script>` block to a file and run `node --check` on it.
@@ -62,6 +63,11 @@ A local Windows app that reads a Noita save (`%USERPROFILE%\AppData\LocalLow\Nol
 - **World chunks** (`world_X_Y.png_petri`, 512×512 world pixels each): `u32 24, u32 512, u32 512`, then 512×512 bytes (low 7 bits = index into this chunk's material list, high bit = custom colour), then `u32 n` + n material names, then `u32 n` + n ARGB custom colours (consumed in order by high-bit pixels). Physics objects follow and are **not parsed yet** (backlog 8).
 - **World geometry**: one world is 35,840 px wide (`WORLD_W`); parallel worlds repeat every 35,840 px east and west. The user has visited ones near x = 36,000, 71,000 and 107,000.
 - **Persistent progress**: `save00/persistent/flags/action_<id>` (lowercase) exists for every spell ever picked up. That drives "never picked up". `card_unlocked_*` flags are unlocks.
+- **Perks in the world**: entity `data/entities/items/pickup/perk.xml`, tags `teleportable_NOT,perk,item_perk`. Not all are on Holy Mountain altars (the user's save has Leggy Mutation at (-2730, 2022) and Moon Radar at (16120, 3328)); collapsed mountains keep theirs. The id follows the string `perk_id` in its VariableStorageComponent (`read_perk_id`). Perk reroll machines are ordinary items (`perk_reroll.xml`, tag `item_shop`).
+- **Shop prices**: `ItemCostComponent` is `cost` (int64, big-endian) then `stealable` (bool). Present on shop wands, cards and reroll machines; searched only inside the entity's own segment. Not every priced item is in a Holy Mountain (four priced cards near (-2350, 5490)), and the pickup script (`shop_effect.lua`) doesn't remove it, so the UI says "has a price", not "in a shop".
+- **player.xml**: plain XML. `inventory_quick` children are wands (`AbilityComponent` + `gun_config`/`gunaction_config`) and flasks (`MaterialInventoryComponent/count_per_material_type/Material material= count=`, names not numbers); `inventory_full` children are spare cards. Card order is `ItemComponent inventory_slot.x`. Hp in `DamageModelComponent` is ×25 in the UI; gold is `WalletComponent money`.
+- **world_state.xml**: `WorldStateComponent/lua_globals/E key= value=` holds `PERK_PICKED_<ID>_PICKUP_COUNT`, `HOLY_MOUNTAIN_VISITS`, `ORB_MAP_STRING`, `TEMPLE_LEAKED_<w>_<depth chunk>` (set when a mountain's material checker fails, i.e. the gods were angered: `temple_check_for_leaks.lua`; key from `temple_pos_to_id` in `temple_shared.lua`, where `w = floor((x + 16384) / 32768)` is a 32768-px column, **not** a parallel-world index) `TEMPLE_ACTIVE_<x>_<y>` (position of the mountain's `workshop_aabb`). A collapse (`data/scripts/buildings/workshop_exit.lua`) sets `TEMPLE_COLLAPSED_<w>_<depth chunk>` = 1 **and** `TEMPLE_ACTIVE_<x>_<y>` = 0; entering a mountain sets `TEMPLE_ACTIVE` to 1 (`temple_enter.lua`). The user's save keeps only `TEMPLE_ACTIVE_2233_13078 = 0` (the last main-world mountain, which the user confirmed collapsed), so `inventory.py` treats `TEMPLE_ACTIVE = 0` as collapsed and also reads any `TEMPLE_COLLAPSED_*`. `orbs_found_thisrun` is a `<primitive>` list of orb ids; `save00/persistent/orbs_new/<id>`: one file per orb id; no game script reads it, so "orbs found in any run" is inferred, not confirmed. `HOLY_MOUNTAIN_VISITS` goes up only when you reach a Holy Mountain (or victory room) deeper than the deepest so far (`player_biome_check.lua`), so it is "depths reached", not visits.
+- **Orb map**: `ORB_MAP_STRING` is `"x,y x,y …"` in 512 px chunks (`orb_list` in `data/scripts/lib/utilities.lua`). Verified: entry `-9,7` contains the two `orb_room_materialchecker` entities at (-4550, 3909) and (-4155, 3909). Which orb id belongs to which entry is **not** known, so the map marks the locations without saying which orb or whether it was taken. The game has 12 `orbroom_NN` biomes but the list has 11 entries, so don't call these "all orb rooms".
 - **When files are written**: the game writes world and entity files every few minutes while playing (as areas unload), so Refresh is useful mid-run. `player.xml` and `world_state.xml` are only written on save-and-quit (the user's were two days old during development).
 
 ### Environment gotchas (this machine)
@@ -76,37 +82,13 @@ A local Windows app that reads a Noita save (`%USERPROFILE%\AppData\LocalLow\Nol
 
 Effort: **S** = under an hour, **M** = a few hours, **L** = a day or more. Each item is independent unless it says otherwise.
 
-### 1. Inventory: show what you're carrying ★ (M)
-**Goal**: list the player's wands, spells, flasks and perks; mark spells on the map you already own; optionally hide or dim them.
-
-**Data (verified)**: `save00/player.xml` is plain XML. Child entities `name="inventory_quick"` (wands, flasks) and `name="inventory_full"` (spell cards). Wands have `<AbilityComponent ... ui_name= mana_max= mana_charge_speed= ...>` with `<gun_config actions_per_round= shuffle_deck_when_empty= reload_time= deck_capacity=>` and `<gunaction_config fire_rate_wait= spread_degrees= ...>` child elements. Cards have `<ItemActionComponent action_id="...">`, and always-casts have `<ItemComponent permanently_attached="1">`. Flasks have `<MaterialInventoryComponent>` → `<count_per_material_type><Material material="water" count="752">` (**names, not numbers**). Perks: `save00/world_state.xml` has `PERK_PICKED_<PERK_ID>_PICKUP_COUNT` in its lua globals (seen: EXTRA_HP, GAMBLE, PERKS_LOTTERY, REMOVE_FOG_OF_WAR, SHIELD).
-
-**Where**: new `inventory.py` (parse with `xml.etree`), called from `State.refresh()` (watch `player.xml` mtime like the other files) and exposed in `State.data()` as `inventory: {wands, spells, flasks, perks, written}`. UI: a section at the top of the Found tab or a new tab. Add `owned` to the `hasNew`-style helpers and a chip such as "Hide owned".
-
-**Gotcha**: only written on save-and-quit, so show "as of <file time>" in the UI.
-
-**Done when**: the inventory lists the same wands and spells as in-game after a save-and-quit, and owned spells are marked.
-
-### 2. "You are here" and distance sorting (S)
-**Goal**: player marker on the map; sort lists by distance.
-
-**Data**: the first `<_Transform position.x= position.y=>` in `player.xml` is the player (verified: (-302.8, 4987)). Same staleness as item 1.
-
-**Where**: `State.data()` adds `player: {x, y, time}`. `draw()` draws the marker; `renderWands()` gets a "Nearest" option in `#sort`.
-
-### 3. Holy Mountain contents: perks and shop ★ (M)
-**Goal**: show perks on offer and shop wands/spells with prices; flag notable perks.
-
-**Data (verified)**: perk altars are entities `data/entities/items/pickup/perk.xml` with tags `teleportable_NOT,perk,item_perk` (56 in the current save). The perk id is in a VariableStorageComponent whose name is `perk_id`, followed by the value string (`\x00\x00\x00\x07perk_id` then a length-prefixed id such as `GLASS_CANNON`). Shop items carry an `ItemCostComponent` (170 in the save). Read `cost` per the schema; check its fields in the schema XML. Shop wands and cards are already scanned as wands and loose cards; they just lack the price.
-
-**Where**: `noita_wands.scan_file`: add a `kind='perk'` branch for `perk.xml` (read `perk_id`), and read `ItemCostComponent.cost` for wands and cards inside their segment (`component(d, 'ItemCostComponent', off, end)`). Perk names, icons and descriptions: the wiki Cargo table **`Perks`** (listed by `action=cargotables`); add it to `wiki_data.build()`. UI: a "Perks" option in the Found selector and a price tag in wand/card rows (`statsEl`/`tagsEl`). A "Notable perk" list could mirror `NOTABLE_SPELLS`; ask the user which perks.
-
-**Done when**: each Holy Mountain on the map shows its perks with wiki names, and shop items show prices.
-
-### 4. Run state: fungal shifts, orbs, collapsed mountains (S–M)
-**Data**: `world_state.xml` has `<changed_materials>` with `<string>` pairs (from, to); empty in the current save. It also has `orbs_found_thisrun` (a `<primitive>` list) and lua globals/flags; look for the Holy Mountain collapse flag (`TEMPLE_COLLAPSED_*`-style; verify). `persistent/orbs_new/` holds orbs found across runs.
-
-**Where**: parse in `State.refresh()`; show in a small "Run" panel. Apply fungal shifts to material names in the Materials tab ("Water → now Blood").
+### Done (2026-11-13, branch `inventory-perks-runstate-zoom`)
+- **Refactor (2026-11-13)**: whole codebase reviewed and restructured. Verified with before/after snapshots of `/api/data` (identical for the real save and the sample), pixel-identical tiles on 40 chunks, byte-identical decompression on 300 files, and the same page script run against the old and new UI (all lists, filters, sorts, searches, tabs, tooltips identical except the intended changes). Fixed on the way: chunks were decompressed twice per tile; quarter tiles were also all held in memory; spell-type headings never got their plural names; the Found and Materials lists stopped at 300 rows without saying so; "Has new spells" filtered loose spells while its chip was hidden; a view change made before the window was laid out was overwritten by the first fit; the filter box was read from the DOM once per item per frame; cache and wiki files were written non-atomically.
+- **Fact check (2026-11-13)**: every label added in this branch was checked against the game scripts and the save; overclaims ("walls broken", "visited", "Holy Mountain perks", "in a shop", "orb rooms", "perks are gone") were reworded. Still inferred, not proven: the fungal-shift pair layout, the meaning of `orbs_new`, and that `player.xml` is only rewritten on save-and-quit (observed, not from a script).
+- **Inventory (was 1)**: Run tab, "Carried" marks on spells, "Hide carried" (Found) and "Carried" (Spells) chips.
+- **Holy Mountain perks and shop prices (was 3)**: "Holy Mountain perks" in the Found selector, Perks map layer, `$price` tags, "In a shop" chip, "Price (low)" sort. `NOTABLE_PERKS` in `companion.py` is a **starter list picked by Claude; confirm it with the user**.
+- **Run state (was 4)**: perks, orbs (this run / all runs), fungal shifts, Holy Mountain visits and broken walls in the Run tab; main-world orb rooms as a map layer; shifted materials tagged "→ now X" in Materials. Collapsed mountains are listed in the Run tab and marked on the map (Holy Mountains layer). Still unverified: the `<changed_materials>` pair layout (empty in every save so far); re-check on a save that has a fungal shift.
+- **Full-detail zoom (was 6)**: past 1×, visible chunks plus one ring around them load from `/tile/full/` (LRU of 96 in the page); quarter tiles show until each arrives. First draw is about 0.2–0.35 s per chunk on the user's PC.
 
 ### 5. Mod spells (M)
 **Goal**: names and icons for spells from enabled mods (currently shown as raw IDs with "?" icons).
@@ -114,13 +96,6 @@ Effort: **S** = under an hour, **M** = a few hours, **L** = a day or more. Each 
 **Data**: `save00/mod_config.xml` lists mods with `enabled="1"` and `workshop_item_id`. A mod's files are in `G:\SteamLibrary\steamapps\workshop\content\881100\<id>\` (or `Noita\mods\<name>\` for local ones). Mods add spells by appending Lua to `data/scripts/gun/gun_actions.lua` (look for `ModLuaFileAppend` in their `init.lua`). Parse the appended file for `id`, `name` (often a `$translation` key, defined in the mod's `translations.csv`), `sprite`, `type`, `spawn_level`, `spawn_probability`.
 
 **Where**: new `mod_data.py`, merged into `load_spells()` in `companion.py` for IDs the wiki lacks. Icons come from the mod folder. Remember the user's wiki-first preference: mods have no wiki pages, so reading mod files is fine here.
-
-### 6. Full-detail zoom ★ (M)
-**Goal**: real pixels when zoomed in; tiles are currently ¼ scale (128 px per 512 px chunk).
-
-**Where**: `process_chunk()` already renders the full 512×512 image (`noita_map.render_chunk`) before downsizing to `TS`. Also save the full image (cache `tiles_full/`), serve `GET /tile/full/<cx>_<cy>.png`, and in `draw()` switch to full tiles when `view.s > 1`, loading only visible ones (keep a small LRU). Watch disk use: about 1,500 chunks × ~100–200 KB.
-
-**Done when**: zooming past 1× shows crisp pixels with no visible pop-in lag.
 
 ### 7. Biome and landmark labels, parallel-world jumps (S–M)
 **Data**: the biome map is `data/biome_impl/biome_map.png` in `data.wak` (one pixel per 512×512 chunk). Colours map to biomes in `data/biome/_biomes_all.xml`. Biome names: game translations or the wiki (prefer wiki per user preference; the wiki has a page per biome). Holy Mountains sit at fixed depths; perk altars from item 3 give exact positions.
