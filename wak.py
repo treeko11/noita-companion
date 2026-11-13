@@ -1,4 +1,9 @@
+"""Read files from Noita's data.wak archive (a plain index of offsets and sizes, no compression or encryption).
+
+    python wak.py <data.wak>        # list the first files
+"""
 import struct
+
 
 class Wak:
     def __init__(self, path):
