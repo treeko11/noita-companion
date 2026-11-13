@@ -168,7 +168,9 @@ EXTRA_ITEMS = {'heart_fullhp': ('Extra Max Health', 'Extra Max Health', False),
                'perk_reroll': ('Perk Reroll', 'Holy Mountain', True),
                'chest_random': ('Treasure Chest', 'Treasure Chest', False),
                'chest_random_super': ('Great Treasure Chest', 'Great Treasure Chest', False),
-               'goldnugget': ('Gold nugget', 'Gold', True)}
+               'goldnugget': ('Gold nugget', 'Gold', True),
+               'greed_curse': ('Curse of Greed', 'Curse of Greed', False),
+               'essence_laser': ('Essence of Earth', 'Essences', False)}
 
 
 def catalog_entry(name, page=None, quiet=False, **kw):
